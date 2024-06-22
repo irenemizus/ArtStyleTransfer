@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lain Ivakura</title>
+    <style>
+        body {
+            margin: auto;
+        }
+        .image {
+            width: 23vw;
+            margin: 0.5vw;
+        }
+    </style>
+</head>
+<body>
+    {% for id in image_ids %}
+        <img class="image" src="{{ url_for('generated', image_id=id) }}" alt="{{ id }}"></img>
+    {% endfor %}
+
+{#    The status is: { { status }}#}
+{#    <img src="{ { url_for('static', filename='./Lain_Iwakura.jpg') }}" class="image" />#}
+{#    <img src="{ { url_for('generated', image_id='luda1024') }}" class="image" />#}
+</body>
+</html>
