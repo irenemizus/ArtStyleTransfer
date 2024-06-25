@@ -10,10 +10,9 @@ from functools import reduce
 
 from vgg_nets import Vgg16, Vgg19, Vgg16Experimental
 
-IMAGENET_MEAN_255 = [0, 0, 0]
-#IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
+#IMAGENET_MEAN_255 = [0, 0, 0]
+IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
 IMAGENET_STD_NEUTRAL = [1, 1, 1]
-
 
 #
 # Image manipulation util functions
@@ -42,10 +41,7 @@ def load_image(img_path, target_shape=None, blur=False):
     return img
 
 
-
-
 def prepare_img(img, device):
-
     # normalize using ImageNet's mean
     # [0, 255] range worked much better for me than [0, 1] range (even though PyTorch models were trained on latter)
     transform = transforms.Compose([
@@ -59,58 +55,12 @@ def prepare_img(img, device):
 
 def unprepare_img(img):
     # reversing prepare_img()
-    dump_img = img.squeeze(0).to("cpu").detach().numpy()
+    dump_img = img.permute([0, 2, 3, 1]).squeeze(0).to("cpu").detach().numpy()
     dump_img += np.array(IMAGENET_MEAN_255).reshape((1, 1, 3))
     # dump_img = np.clip(dump_img, 0, 255).astype(np.float32) / 255
     dump_img = dump_img.astype(np.float32) / 255
 
     return dump_img
-
-
-
-
-def save_image(img, img_path):
-    if len(img.shape) == 2:
-        img = np.stack((img,) * 3, axis=-1)
-    cv.imwrite(img_path, img[:, :, ::-1])  # [:, :, ::-1] converts rgb into bgr (opencv contraint...)
-
-
-def generate_out_img_name(content_img_name, style_img_name, optimizer, init_method, height, model, content_weight, style_weight, tv_weight, img_format):
-    prefix = os.path.basename(content_img_name).split('.')[0] + '_' + os.path.basename(style_img_name).split('.')[0]
-    # called from the reconstruction script
-    #if 'reconstruct_script' in config:
-    #    suffix = f'_o_{config["optimizer"]}_h_{str(config["height"])}_m_{config["model"]}{config["img_format"][1]}'
-    #else:
-    #
-    suffix = f'_o_{optimizer}_i_{init_method}_h_{str(height)}_m_{model}_cw_{content_weight}_sw_{style_weight}_tv_{tv_weight}{img_format[1]}'
-    return prefix + suffix
-
-
-def save_and_maybe_display(optimizing_img, name_prefix, dump_path, img_format, saving_freq, img_id, num_of_iterations, content_img_name, style_img_name, optimizer, init_method, height, model, content_weight, style_weight, tv_weight, should_display=False):
-    out_img = optimizing_img.squeeze(axis=0).to('cpu').detach().numpy()
-    out_img = np.moveaxis(out_img, 0, 2)  # swap channel from 1st to 3rd position: ch, _, _ -> _, _, chr
-
-    # for saving_freq == -1 save only the final result (otherwise save with frequency saving_freq and save the last pic)
-    if img_id == num_of_iterations-1 or (saving_freq > 0 and img_id % saving_freq == 0):
-        out_img_name = name_prefix + str(img_id).zfill(img_format[0]) + img_format[1] if saving_freq != -1 else generate_out_img_name(content_img_name, style_img_name, optimizer, init_method, height, model, content_weight, style_weight, tv_weight, img_format)
-        dump_img = np.copy(out_img)
-        dump_img += np.array(IMAGENET_MEAN_255).reshape((1, 1, 3))
-        dump_img = np.clip(dump_img, 0, 255).astype('uint8')
-        cv.imwrite(os.path.join(dump_path, out_img_name), dump_img[:, :, ::-1])
-
-    if should_display:
-        plt.imshow(np.uint8(get_uint8_range(out_img)))
-        plt.show()
-
-
-def get_uint8_range(x):
-    if isinstance(x, np.ndarray):
-        x -= np.min(x)
-        x /= np.max(x)
-        x *= 255
-        return x
-    else:
-        raise ValueError(f'Expected numpy array got {type(x)}')
 
 
 #
