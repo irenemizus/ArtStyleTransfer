@@ -3,7 +3,7 @@ from typing import Callable
 
 from neural_style_transfer import neural_style_transfer
 
-sem = asyncio.Semaphore(1)
+sem = asyncio.Semaphore(2)
 
 
 class Task:
@@ -103,7 +103,7 @@ class Executor:
     async def run(self):
         self.__has_been_run = True
         jobs = [task.job for task in self.__tasks.values()]
-        _ = await asyncio.wait(jobs)
+        await asyncio.wait(jobs)
 
 
 async def main():

@@ -1,4 +1,7 @@
+import asyncio
+import time
 import uuid
+from aiowrap import aiowrap
 
 from task_executor import Executor
 from quart import Quart, render_template, send_file, request, make_response
@@ -28,7 +31,7 @@ executor = Executor(height, content_weight, style_weight, tv_weight, optimizer, 
 
 
 async def backend_task():
-    tasks_count = 1
+    tasks_count = 2
     for i in range(tasks_count):
         await executor.add_task(str(uuid.uuid4()),
                                 content_img_filename=content_img_filenames[i],
@@ -40,7 +43,25 @@ async def backend_task():
 @app.before_serving
 async def startup():
     app.add_background_task(backend_task)
-    pass
+    # async def async_range(count):
+    #     for i in range(count):
+    #         yield i
+
+    # @aiowrap
+    # def wrapped_not_async_sleep():
+    #     time.sleep(10)
+
+    # def sync_sleep(delay):
+    #     time.sleep(delay)
+    #
+    # async def wait_task():
+    #     for i in range(100):
+    #         print("Hello! Task {}".format(i))
+    #         await asyncio.get_running_loop().run_in_executor(None, sync_sleep, 1)
+
+    # app.add_background_task(wait_task)
+    # print("ADDED!!!")
+    # pass
 
 
 @app.route("/")

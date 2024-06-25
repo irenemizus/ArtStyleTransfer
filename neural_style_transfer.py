@@ -11,6 +11,7 @@ from torch.optim import Adam, LBFGS
 from torch.autograd import Variable
 import numpy as np
 import argparse
+import asyncio
 
 
 class RepresentationBuilder:
@@ -153,7 +154,8 @@ class NeuralStyleTransfer:
             return total_loss
 
         while step < iters_num:
-            optimizer.step(optimizer_step_callback)
+            await asyncio.get_running_loop().run_in_executor(None, optimizer.step, optimizer_step_callback)
+            #optimizer.step(optimizer_step_callback)
             res_img = copy.deepcopy(optimizing_img)
             yield utils.unprepare_img(res_img)
 
@@ -177,8 +179,8 @@ async def neural_style_transfer(content_img_name, style_img_name, height, conten
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    levels_num = 1
-    iters_num = 100
+    levels_num = 2
+    iters_num = 200
     model_name = model
     optimizer_name = optimizer
 
