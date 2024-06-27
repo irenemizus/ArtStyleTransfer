@@ -48,10 +48,14 @@ async def startup():
 @app.route("/")
 async def index():
     image_prog = []
+    prog_data = []
     image_ids = await executor.task_ids()
     for image_id in image_ids:
         image_progress = await executor.get_progress(image_id)
-        image_prog.append(image_progress[0] if image_progress[0] > 0 else 0)
+        prog_data.append(image_progress[0] if image_progress[0] > 0 else 0)
+        cur_iter = prog_data[0] / 100.0 * iters_num
+        prog_data.extend([cur_iter, iters_num])
+        image_prog.append(prog_data)
     return await render_template('index.html', image_ids=image_ids, image_prog=image_prog)
 
 

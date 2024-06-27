@@ -23,7 +23,7 @@
     {% for id, pr in zip(image_ids, image_prog) %}
         <div class="div">
             <img class="image" src="{{ url_for('generated', image_id=id) }}" alt="{{ id }}" />
-                <div>{{ "Progress = %.2f%%" % pr }}</div>
+                <div>{{ "Progress = %.2f%% (iteration #%d of %d)" % (pr[0], pr[1], pr[2]) }}</div>
         </div>
     {% endfor %}
 
