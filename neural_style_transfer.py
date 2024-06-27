@@ -155,12 +155,11 @@ class NeuralStyleTransfer:
 
         while step < iters_num:
             await asyncio.get_running_loop().run_in_executor(None, optimizer.step, optimizer_step_callback)
-            #optimizer.step(optimizer_step_callback)
             res_img = copy.deepcopy(optimizing_img)
-            yield utils.unprepare_img(res_img)
+            yield utils.unprepare_img(res_img), step
 
 
-async def neural_style_transfer_fake(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir):
+async def neural_style_transfer_fake(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
     print("entering neural_style_transfer_fake")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     content_img_path = os.path.join(content_images_dir, content_img_name)
@@ -172,15 +171,13 @@ async def neural_style_transfer_fake(content_img_name, style_img_name, height, c
         yield i, newImage
 
 
-async def neural_style_transfer(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir):
+async def neural_style_transfer(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
     print("entering neural_style_transfer")
     content_img_path = os.path.join(content_images_dir, content_img_name)
     style_img_path = os.path.join(style_images_dir, style_img_name)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    levels_num = 2
-    iters_num = 200
     model_name = model
     optimizer_name = optimizer
 
@@ -219,9 +216,8 @@ async def neural_style_transfer(content_img_name, style_img_name, height, conten
         init_img_name = style_img_name
 
     nst = NeuralStyleTransfer(device, model_name, style_img_levels, optimizer_name)
-    cur_iter = 0
     print("entering processing loop")
-    async for img in nst.process(content_img_levels, init_img_next, 10.0, iters_num, content_weight, style_weight, tv_weight, init_img_name):
+    async for img, cur_iter in nst.process(content_img_levels, init_img_next, 10.0, iters_num, content_weight, style_weight, tv_weight, init_img_name):
         print("in the processing loop")
         percent = cur_iter / iters_num * 100.0
         cur_iter += 1

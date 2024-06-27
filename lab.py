@@ -1,7 +1,4 @@
-import asyncio
-import time
 import uuid
-from aiowrap import aiowrap
 
 from task_executor import Executor
 from quart import Quart, render_template, send_file, request, make_response
@@ -12,6 +9,7 @@ import numpy as np
 os.environ["QUART_APP"] = __file__
 app = Quart(__name__)
 
+app.jinja_env.globals.update(zip=zip)
 
 default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
 content_images_dir = os.path.join(default_resource_dir, 'content-images')
@@ -26,12 +24,14 @@ tv_weight = 0e3
 optimizer = 'lbfgs'
 model = 'vgg19'
 init_method = 'content'
+tasks_count = 2
+levels_num = 2
+iters_num = 20
 
-executor = Executor(height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir)
+executor = Executor(height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num)
 
 
 async def backend_task():
-    tasks_count = 2
     for i in range(tasks_count):
         await executor.add_task(str(uuid.uuid4()),
                                 content_img_filename=content_img_filenames[i],
@@ -43,31 +43,16 @@ async def backend_task():
 @app.before_serving
 async def startup():
     app.add_background_task(backend_task)
-    # async def async_range(count):
-    #     for i in range(count):
-    #         yield i
-
-    # @aiowrap
-    # def wrapped_not_async_sleep():
-    #     time.sleep(10)
-
-    # def sync_sleep(delay):
-    #     time.sleep(delay)
-    #
-    # async def wait_task():
-    #     for i in range(100):
-    #         print("Hello! Task {}".format(i))
-    #         await asyncio.get_running_loop().run_in_executor(None, sync_sleep, 1)
-
-    # app.add_background_task(wait_task)
-    # print("ADDED!!!")
-    # pass
 
 
 @app.route("/")
 async def index():
+    image_prog = []
     image_ids = await executor.task_ids()
-    return await render_template('index.html', image_ids=image_ids)
+    for image_id in image_ids:
+        image_progress = await executor.get_progress(image_id)
+        image_prog.append(image_progress[0] if image_progress[0] > 0 else 0)
+    return await render_template('index.html', image_ids=image_ids, image_prog=image_prog)
 
 
 @app.route('/generated/<image_id>', endpoint='generated')

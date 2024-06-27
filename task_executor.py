@@ -7,7 +7,7 @@ sem = asyncio.Semaphore(2)
 
 
 class Task:
-    def __init__(self, content_img_filename, style_img_filename, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, task_id: str, report: Callable):
+    def __init__(self, content_img_filename, style_img_filename, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num, task_id: str, report: Callable):
         self.__task_id = task_id
         self.__report = report
 
@@ -22,6 +22,8 @@ class Task:
         self.__init_method = init_method
         self.__content_images_dir = content_images_dir
         self.__style_images_dir = style_images_dir
+        self.__iters_num = iters_num
+        self.__levels_num = levels_num
 
         self.job = asyncio.create_task(self.__do_job())
 
@@ -34,13 +36,14 @@ class Task:
                                                            self.__height,
                                                            self.__content_weight, self.__style_weight, self.__tv_weight,
                                                            self.__optimizer, self.__model, self.__init_method,
-                                                           self.__content_images_dir, self.__style_images_dir):
+                                                           self.__content_images_dir, self.__style_images_dir,
+                                                           self.__iters_num, self.__levels_num):
                 result_copy = (result[0], result[1].copy())
                 await self.__report(self.__task_id, result_copy)
 
 
 class Executor:
-    def __init__(self, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir):
+    def __init__(self, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
         self.__tasks = {}
         self.__progress = {}
         self.__has_been_run = False
@@ -54,6 +57,8 @@ class Executor:
         self.__init_method = init_method
         self.__content_images_dir = content_images_dir
         self.__style_images_dir = style_images_dir
+        self.__iters_num = iters_num
+        self.__levels_num = levels_num
 
         self.__lock = asyncio.Lock()
 
@@ -98,6 +103,7 @@ class Executor:
                                      self.__content_weight, self.__style_weight, self.__tv_weight,
                                      self.__optimizer, self.__model, self.__init_method,
                                      self.__content_images_dir, self.__style_images_dir,
+                                     self.__iters_num, self.__levels_num,
                                      task_id=task_id, report=self.__report)
 
     async def run(self):

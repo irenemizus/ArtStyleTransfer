@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Lain Ivakura</title>
+    <title>Neural Style Transfer</title>
     <style>
         body {
             margin: auto;
@@ -11,11 +11,20 @@
             width: 23vw;
             margin: 0.5vw;
         }
+        .div {
+            display: inline-block;
+            text-align: center;
+            font-family: sans-serif;
+        }
     </style>
 </head>
 <body>
-    {% for id in image_ids %}
-        <img class="image" src="{{ url_for('generated', image_id=id) }}" alt="{{ id }}"></img>
+
+    {% for id, pr in zip(image_ids, image_prog) %}
+        <div class="div">
+            <img class="image" src="{{ url_for('generated', image_id=id) }}" alt="{{ id }}" />
+                <div>{{ "Progress = %.2f%%" % pr }}</div>
+        </div>
     {% endfor %}
 
 {#    The status is: { { status }}#}
