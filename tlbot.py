@@ -70,8 +70,7 @@ async def process_st(state):
         cont_img = copy.deepcopy(state.get_cont_img())
         style_img = copy.deepcopy(state.get_style_img())
 
-    new_cont_img_np = np.array(cont_img) / 2.0
-    #new_style_img_np = np.array(style_img) / 2.0
+
 
     return new_cont_img_np
 

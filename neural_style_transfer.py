@@ -1,5 +1,8 @@
 import copy
 import os
+
+import cv2
+
 MYPATH = os.path.dirname(os.path.abspath(__file__))
 print(f"Script's directory: {MYPATH}")
 os.environ["TORCH_HOME"] = MYPATH
@@ -12,6 +15,12 @@ from torch.autograd import Variable
 import numpy as np
 import argparse
 import asyncio
+
+
+class ContentStylePair:
+    def __init__(self, content, style):
+        self.content = content
+        self.style = style
 
 
 class RepresentationBuilder:
@@ -159,30 +168,38 @@ class NeuralStyleTransfer:
             yield utils.unprepare_img(res_img), step
 
 
-async def neural_style_transfer_fake(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
-    print("entering neural_style_transfer_fake")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    content_img_path = os.path.join(content_images_dir, content_img_name)
-    content_img = utils.load_image(content_img_path, target_shape=height, blur=False)
-    content_img_prep = utils.prepare_img(content_img, device)
-    for i in range(10):
-        content_img_prep_tmp = copy.deepcopy(content_img_prep)
-        newImage = utils.unprepare_img(content_img_prep_tmp)
-        yield i, newImage
+# async def neural_style_transfer_fake(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
+#     print("entering neural_style_transfer_fake")
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     content_img_path = os.path.join(content_images_dir, content_img_name)
+#     content_img = utils.load_image(content_img_path, target_shape=height, blur=False)
+#     content_img_prep = utils.prepare_img(content_img, device)
+#     for i in range(10):
+#         content_img_prep_tmp = copy.deepcopy(content_img_prep)
+#         newImage = utils.unprepare_img(content_img_prep_tmp)
+#         yield i, newImage
 
 
-async def neural_style_transfer(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
+async def resize(img, height):
+    current_height, current_width = img.shape[:2]
+    new_width = int(current_width * (height / current_height))
+    return cv2.resize(copy.deepcopy(img), (new_width, height), interpolation=cv2.INTER_CUBIC)
+
+
+async def neural_style_transfer(content_n_style: ContentStylePair, height,
+                                content_weight, style_weight, tv_weight,
+                                optimizer, model, init_method,
+                                iters_num, levels_num):
     print("entering neural_style_transfer")
-    content_img_path = os.path.join(content_images_dir, content_img_name)
-    style_img_path = os.path.join(style_images_dir, style_img_name)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model_name = model
     optimizer_name = optimizer
 
-    content_img_level0 = utils.load_image(content_img_path, target_shape=height, blur=False)
-    style_img_level0 = utils.load_image(style_img_path, target_shape=height, blur=False)
+    content_img_level0 = await resize(content_n_style.content, height=height) #utils.load_image(content_img_path, target_shape=height, blur=False)
+    style_img_level0 = await resize(content_n_style.style, height=height) #utils.load_image(style_img_path, target_shape=height, blur=False)
+
 
     # Starting the processing
     content_img_levels = [ content_img_level0 ]
@@ -193,8 +210,8 @@ async def neural_style_transfer(content_img_name, style_img_name, height, conten
     for level in range(1, levels_num):
         height_next *= 2
 
-        content_img_next = utils.load_image(content_img_path, target_shape=height_next, blur=False)
-        style_img_next = utils.load_image(style_img_path, target_shape=height_next, blur=False)
+        content_img_next = await resize(content_n_style.content, height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
+        style_img_next = await resize(content_n_style.style, height=height_next) #utils.load_image(style_img_path, target_shape=height_next, blur=False)
 
         content_img_levels.insert(0, content_img_next)
         style_img_levels.insert(0, style_img_next)
@@ -205,13 +222,13 @@ async def neural_style_transfer(content_img_name, style_img_name, height, conten
         init_img_next = gaussian_noise_img * 0.5
         init_img_name = 'random'
     elif init_method == 'content':
-        init_img_next = utils.load_image(content_img_path, target_shape=height_next, blur=False)
-        init_img_name = content_img_name
+        init_img_next = await resize(content_n_style.content, height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
+        init_img_name = "i don't know the name" #content_img_name
         #init_img_next = 0.5 * (init_img_next + gaussian_noise_img)
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image
-        style_img_resized = utils.load_image(style_img_path, target_shape=np.asarray(content_img_levels[0].shape[2:]), blur=False)
+        style_img_resized = await resize(content_n_style.style, height=height_next) #utils.load_image(style_img_path, target_shape=np.asarray(content_img_levels[0].shape[2:]), blur=False)
         init_img_next = style_img_resized
         init_img_name = style_img_name
 
@@ -222,6 +239,17 @@ async def neural_style_transfer(content_img_name, style_img_name, height, conten
         percent = cur_iter / iters_num * 100.0
         cur_iter += 1
         yield percent, img
+
+
+def load_image(img_path):
+    if not os.path.exists(img_path):
+        raise Exception(f'Path does not exist: {img_path}')
+    img = cv2.imread(img_path)[:, :, ::-1]  # [:, :, ::-1] converts BGR (opencv format...) into RGB
+
+    img = img.astype(np.float32)  # convert from uint8 to float32
+    img /= 255.0  # get to [0, 1] range
+    return img
+
 
 if __name__ == "__main__":
     #
@@ -261,4 +289,8 @@ if __name__ == "__main__":
     saving_freq = args.saving_freq
 
     # original NST (Neural Style Transfer) algorithm (Gatys et al.)
-    results_path = neural_style_transfer(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir)
+    content_img_path = os.path.join(content_images_dir, content_img_name)
+    style_img_path = os.path.join(style_images_dir, style_img_name)
+
+    content_n_style = ContentStylePair(load_image(content_img_path), load_image(style_img_path))
+    results_path = neural_style_transfer(content_n_style, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir)

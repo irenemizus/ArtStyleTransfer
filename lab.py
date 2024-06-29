@@ -1,41 +1,37 @@
 import uuid
 
+import neural_style_transfer
+import task_executor
 from task_executor import Executor
 from quart import Quart, render_template, send_file, request, make_response
 import os
 import cv2
 import numpy as np
+from task_executor import executor, iters_num
 
 os.environ["QUART_APP"] = __file__
 app = Quart(__name__)
 
 app.jinja_env.globals.update(zip=zip)
 
-default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
-content_images_dir = os.path.join(default_resource_dir, 'content-images')
-style_images_dir = os.path.join(default_resource_dir, 'style-images')
-
-content_img_filenames = ['luda.jpg', 'lion.jpg']
-style_img_filenames = ['mona_lisa.jpg', 'mona_lisa.jpg', 'vg_starry_night.jpg', 'ben_giles.jpg']
-height = 256
-content_weight = 1e1
-style_weight = 1e5
-tv_weight = 0e3
-optimizer = 'lbfgs'
-model = 'vgg19'
-init_method = 'content'
-tasks_count = 2
-levels_num = 2
-iters_num = 20
-
-executor = Executor(height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num)
-
 
 async def backend_task():
-    for i in range(tasks_count):
-        await executor.add_task(str(uuid.uuid4()),
-                                content_img_filename=content_img_filenames[i],
-                                style_img_filename=style_img_filenames[i])
+    default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
+    content_images_dir = os.path.join(default_resource_dir, 'content-images')
+    style_images_dir = os.path.join(default_resource_dir, 'style-images')
+
+    content_style_filename_pairs = [
+        ('luda.jpg', 'mona_lisa.jpg'),
+        ('lion.jpg', 'mona_lisa.jpg'),
+        ('luda.jpg', 'vg_starry_night.jpg'),
+        ('lion.jpg', 'vg_starry_night.jpg'),
+    ]
+
+    for pair in content_style_filename_pairs:
+        content_img = neural_style_transfer.load_image(os.path.join(content_images_dir, pair[0]))
+        style_img = neural_style_transfer.load_image(os.path.join(style_images_dir, pair[1]))
+
+        await executor.add_task(str(uuid.uuid4()), neural_style_transfer.ContentStylePair(content_img, style_img))
 
     await executor.run()
 

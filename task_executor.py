@@ -1,18 +1,18 @@
 import asyncio
+import uuid
 from typing import Callable
 
-from neural_style_transfer import neural_style_transfer
+from neural_style_transfer import neural_style_transfer, ContentStylePair
 
 sem = asyncio.Semaphore(2)
 
 
 class Task:
-    def __init__(self, content_img_filename, style_img_filename, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num, task_id: str, report: Callable):
+    def __init__(self, content_n_style: ContentStylePair, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, task_id: str, report: Callable):
         self.__task_id = task_id
         self.__report = report
 
-        self.__content_img_filename = content_img_filename
-        self.__style_img_filename = style_img_filename
+        self.__content_n_style = content_n_style
         self.__height = height
         self.__content_weight = content_weight
         self.__style_weight = style_weight
@@ -20,30 +20,33 @@ class Task:
         self.__optimizer = optimizer
         self.__model = model
         self.__init_method = init_method
-        self.__content_images_dir = content_images_dir
-        self.__style_images_dir = style_images_dir
         self.__iters_num = iters_num
         self.__levels_num = levels_num
 
         self.job = asyncio.create_task(self.__do_job())
 
     async def __do_job(self):
-        print(f'Processing content image {self.__content_img_filename}, style image {self.__style_img_filename}; initial method: {self.__init_method}')
+        #print(f'Processing content image {self.__content_img_filename}, style image {self.__style_img_filename}; initial method: {self.__init_method}')
         async with sem:
             #for content_img_filename, style_img_filename in zip(self.__content_img_filenames, self.__style_img_filenames):
             print("awaiting neural_style_transfer")
-            async for result in neural_style_transfer(self.__content_img_filename, self.__style_img_filename,
-                                                           self.__height,
-                                                           self.__content_weight, self.__style_weight, self.__tv_weight,
-                                                           self.__optimizer, self.__model, self.__init_method,
-                                                           self.__content_images_dir, self.__style_images_dir,
-                                                           self.__iters_num, self.__levels_num):
+
+            # async def neural_style_transfer(content_n_style: ContentStylePair, height,
+            #                                 content_weight, style_weight, tv_weight,
+            #                                 optimizer, model, init_method,
+            #                                 iters_num, levels_num):
+
+
+            async for result in neural_style_transfer(self.__content_n_style, self.__height,
+                                                       self.__content_weight, self.__style_weight, self.__tv_weight,
+                                                       self.__optimizer, self.__model, self.__init_method,
+                                                       self.__iters_num, self.__levels_num):
                 result_copy = (result[0], result[1].copy())
                 await self.__report(self.__task_id, result_copy)
 
 
 class Executor:
-    def __init__(self, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
+    def __init__(self, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num):
         self.__tasks = {}
         self.__progress = {}
         self.__has_been_run = False
@@ -55,8 +58,6 @@ class Executor:
         self.__optimizer = optimizer
         self.__model = model
         self.__init_method = init_method
-        self.__content_images_dir = content_images_dir
-        self.__style_images_dir = style_images_dir
         self.__iters_num = iters_num
         self.__levels_num = levels_num
 
@@ -95,14 +96,13 @@ class Executor:
         await self.set_progress(task_id, result)
         await self.__print_progress()
 
-    async def add_task(self, task_id: str, content_img_filename, style_img_filename):
+    async def add_task(self, task_id: str, content_n_style: ContentStylePair):
         if self.__has_been_run:
             raise Exception('The backend is already running.')
         await self.set_progress(task_id, (-1, None))
-        self.__tasks[task_id] = Task(content_img_filename, style_img_filename, self.__height,
+        self.__tasks[task_id] = Task(content_n_style, self.__height,
                                      self.__content_weight, self.__style_weight, self.__tv_weight,
                                      self.__optimizer, self.__model, self.__init_method,
-                                     self.__content_images_dir, self.__style_images_dir,
                                      self.__iters_num, self.__levels_num,
                                      task_id=task_id, report=self.__report)
 
@@ -110,6 +110,19 @@ class Executor:
         self.__has_been_run = True
         jobs = [task.job for task in self.__tasks.values()]
         await asyncio.wait(jobs)
+
+
+height = 256
+content_weight = 1e1
+style_weight = 1e5
+tv_weight = 0e3
+optimizer = 'lbfgs'
+model = 'vgg19'
+init_method = 'content'
+levels_num = 2
+iters_num = 20
+
+executor = Executor(height, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
 
 
 async def main():
