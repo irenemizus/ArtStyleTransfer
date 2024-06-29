@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import logging
 import sys
 from asyncio import Lock
@@ -31,17 +32,48 @@ class BotState:
     CONTENT = "content"
 
     def __init__(self):
-        self.value = BotState.STYLE
+        self.value = BotState.CONTENT
+        self.cont_img = None
+        self.style_img = None
 
-    def set_state(self, state):
+    def set_mode(self, state):
         self.value = state
 
-    def get_state(self):
+    def get_mode(self):
         return self.value
+
+    def set_cont_img(self, cont_img):
+        self.cont_img = cont_img
+
+    def get_cont_img(self):
+        return self.cont_img
+
+    def set_style_img(self, style_img):
+        self.style_img = style_img
+
+    def get_style_img(self):
+        return self.style_img
 
 
 states: dict[int, BotState] = {}
 states_lock: Lock = Lock()
+
+
+def get_state(chat_id):
+    if not chat_id in states:
+        states[chat_id] = BotState()
+    return states[chat_id]
+
+
+async def process_st(state):
+    async with states_lock:
+        cont_img = copy.deepcopy(state.get_cont_img())
+        style_img = copy.deepcopy(state.get_style_img())
+
+    new_cont_img_np = np.array(cont_img) / 2.0
+    #new_style_img_np = np.array(style_img) / 2.0
+
+    return new_cont_img_np
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
@@ -64,8 +96,7 @@ async def command_content_handler(message: Message) -> None:
     """
     chat_id = message.chat.id
     async with states_lock:
-        if chat_id in states:
-            states[chat_id].set_state(BotState.CONTENT)
+        get_state(chat_id).set_mode(BotState.CONTENT)
 
     await message.answer(f"Upload the {html.bold('content')} image, please")
 
@@ -77,8 +108,7 @@ async def command_style_handler(message: Message) -> None:
     """
     chat_id = message.chat.id
     async with states_lock:
-        if chat_id in states:
-            states[chat_id].set_state(BotState.STYLE)
+        get_state(chat_id).set_mode(BotState.STYLE)
 
     await message.answer(f"Upload the {html.bold('style')} image, please")
 
@@ -95,26 +125,41 @@ async def echo_handler(message: Message) -> None:
         if message.photo:
             file = await bot.get_file(message.photo[-1].file_id)
             result = await bot.download_file(file.file_path)
-            print(sys.getsizeof(result))
+            #print(sys.getsizeof(result))
             with result as f:
                 res_np = np.frombuffer(f.read(), np.uint8)
                 img_np = cv2.imdecode(res_np, cv2.IMREAD_COLOR)
-            print(img_np.shape)
-
+            #print(img_np.shape)
             img_np = img_np[:, :, ::-1] # BGR -> RGB
 
-            new_img_np = np.array(img_np) / 2.0
+            chat_id = message.chat.id
+            do_processing = False
 
-            new_img_np = new_img_np[:, :, ::-1] # RGB -> BGR
+            async with states_lock:
+                state = get_state(chat_id)
+                cur_mode = state.get_mode()
+                if cur_mode == BotState.CONTENT:
+                    state.set_cont_img(img_np)
+                elif cur_mode == BotState.STYLE:
+                    state.set_style_img(img_np)
+                else:
+                    raise ValueError(f"Unknown mode {cur_mode}")
 
-            _, new_res = cv2.imencode('.jpg', new_img_np)
-            new_res_bytes = new_res.tobytes()
-            with open("content.jpg", "wb") as f:
-                f.write(new_res_bytes)
+                if state.get_cont_img() is not None and state.get_style_img() is not None:
+                    do_processing = True
 
-            bif = BufferedInputFile(new_res_bytes, 'tmp.jpg')
-            print(new_res.shape)
-            await message.answer_photo(bif)
+            if do_processing:
+                res_img = await process_st(state)
+                new_img_np = res_img[:, :, ::-1] # RGB -> BGR
+
+                _, new_res = cv2.imencode('.jpg', new_img_np)
+                new_res_bytes = new_res.tobytes()
+                with open("content.jpg", "wb") as f:
+                    f.write(new_res_bytes)
+
+                bif = BufferedInputFile(new_res_bytes, 'tmp.jpg')
+                #print(new_res.shape)
+                await message.answer_photo(bif)
     except TypeError:
         # But not all the types is supported to be copied so need to handle it
         await message.answer("Nice try!")
