@@ -197,9 +197,8 @@ async def neural_style_transfer(content_n_style: ContentStylePair, height,
     model_name = model
     optimizer_name = optimizer
 
-    content_img_level0 = await resize(content_n_style.content, height=height) #utils.load_image(content_img_path, target_shape=height, blur=False)
-    style_img_level0 = await resize(content_n_style.style, height=height) #utils.load_image(style_img_path, target_shape=height, blur=False)
-
+    content_img_level0 = await resize(content_n_style.content[1], height=height) #utils.load_image(content_img_path, target_shape=height, blur=False)
+    style_img_level0 = await resize(content_n_style.style[1], height=height) #utils.load_image(style_img_path, target_shape=height, blur=False)
 
     # Starting the processing
     content_img_levels = [ content_img_level0 ]
@@ -210,8 +209,8 @@ async def neural_style_transfer(content_n_style: ContentStylePair, height,
     for level in range(1, levels_num):
         height_next *= 2
 
-        content_img_next = await resize(content_n_style.content, height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
-        style_img_next = await resize(content_n_style.style, height=height_next) #utils.load_image(style_img_path, target_shape=height_next, blur=False)
+        content_img_next = await resize(content_n_style.content[1], height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
+        style_img_next = await resize(content_n_style.style[1], height=height_next) #utils.load_image(style_img_path, target_shape=height_next, blur=False)
 
         content_img_levels.insert(0, content_img_next)
         style_img_levels.insert(0, style_img_next)
@@ -222,15 +221,15 @@ async def neural_style_transfer(content_n_style: ContentStylePair, height,
         init_img_next = gaussian_noise_img * 0.5
         init_img_name = 'random'
     elif init_method == 'content':
-        init_img_next = await resize(content_n_style.content, height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
-        init_img_name = "i don't know the name" #content_img_name
+        init_img_next = await resize(content_n_style.content[1], height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
+        init_img_name = content_n_style.content[0]
         #init_img_next = 0.5 * (init_img_next + gaussian_noise_img)
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image
-        style_img_resized = await resize(content_n_style.style, height=height_next) #utils.load_image(style_img_path, target_shape=np.asarray(content_img_levels[0].shape[2:]), blur=False)
+        style_img_resized = await resize(content_n_style.style[1], height=height_next) #utils.load_image(style_img_path, target_shape=np.asarray(content_img_levels[0].shape[2:]), blur=False)
         init_img_next = style_img_resized
-        init_img_name = style_img_name
+        init_img_name = content_n_style.style[0]
 
     nst = NeuralStyleTransfer(device, model_name, style_img_levels, optimizer_name)
     print("entering processing loop")
@@ -274,7 +273,9 @@ if __name__ == "__main__":
     parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
     parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
-    parser.add_argument("--saving_freq", type=int, help="saving frequency for intermediate images (-1 means only final)", default=-1)
+    parser.add_argument("--iters_num", type=int, help="number of iterations to perform", default=200)
+    parser.add_argument("--levels_num", type=int, help="number of pyramid levels", default=3)
+
     args = parser.parse_args()
 
     content_img_name = args.content_img_name
@@ -286,11 +287,12 @@ if __name__ == "__main__":
     optimizer = args.optimizer
     model = args.model
     init_method = args.init_method
-    saving_freq = args.saving_freq
+    iters_num = args.iters_num
+    levels_num = args.levels_num
 
     # original NST (Neural Style Transfer) algorithm (Gatys et al.)
     content_img_path = os.path.join(content_images_dir, content_img_name)
     style_img_path = os.path.join(style_images_dir, style_img_name)
 
-    content_n_style = ContentStylePair(load_image(content_img_path), load_image(style_img_path))
-    results_path = neural_style_transfer(content_n_style, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir)
+    content_n_style = ContentStylePair((content_img_name, load_image(content_img_path)), (style_img_name, load_image(style_img_path)))
+    results_path = neural_style_transfer(content_n_style, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)

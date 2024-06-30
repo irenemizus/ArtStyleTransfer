@@ -2,6 +2,8 @@ import asyncio
 import copy
 import logging
 import sys
+import traceback
+import uuid
 from asyncio import Lock
 
 import cv2
@@ -15,6 +17,9 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, InputFile, CallbackQuery, BufferedInputFile
 from aiogram.methods import SendPhoto
 from magic_filter import MagicFilter
+
+import neural_style_transfer
+from task_executor import executor, iters_num
 
 # Bot token can be obtained via https://t.me/BotFather
 TOKEN = "7433346137:AAF2vjCKBNK_WlXJKBR1_7qFIWN4G5KExyE"
@@ -67,12 +72,23 @@ def get_state(chat_id):
 
 async def process_st(state):
     async with states_lock:
-        cont_img = copy.deepcopy(state.get_cont_img())
+        content_img = copy.deepcopy(state.get_cont_img())
         style_img = copy.deepcopy(state.get_style_img())
 
+    await executor.add_task(str(uuid.uuid4()),
+                            neural_style_transfer.ContentStylePair(('content.jpg', content_img), ('style.jpg', style_img)))
+    await executor.run()
+    image_id = (await executor.task_ids())[0]
+    image_progress = await executor.get_progress(image_id)
 
+    async with states_lock:
+        progress = image_progress[0] if image_progress[0] > 0 else 0
+        cur_iter = progress / 100.0 * iters_num
+        prog_data = [progress, cur_iter, iters_num]
+        res_img = copy.deepcopy(image_progress[1])
 
-    return new_cont_img_np
+    return res_img, prog_data
+
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
@@ -113,7 +129,7 @@ async def command_style_handler(message: Message) -> None:
 
 
 @dp.message()
-async def echo_handler(message: Message) -> None:
+async def img_handler(message: Message) -> None:
     """
     Handler will forward receive a message back to the sender
 
@@ -148,19 +164,20 @@ async def echo_handler(message: Message) -> None:
                     do_processing = True
 
             if do_processing:
-                res_img = await process_st(state)
+                res_img, prog_data = await process_st(state)
                 new_img_np = res_img[:, :, ::-1] # RGB -> BGR
 
+                new_img_np = np.clip(new_img_np * 255, 0, 255).astype('uint8')
                 _, new_res = cv2.imencode('.jpg', new_img_np)
                 new_res_bytes = new_res.tobytes()
-                with open("content.jpg", "wb") as f:
-                    f.write(new_res_bytes)
+                #with open("content.jpg", "wb") as f:
+                #    f.write(new_res_bytes)
 
                 bif = BufferedInputFile(new_res_bytes, 'tmp.jpg')
                 #print(new_res.shape)
                 await message.answer_photo(bif)
-    except TypeError:
-        # But not all the types is supported to be copied so need to handle it
+    except:
+        traceback.print_exc()
         await message.answer("Nice try!")
 
 

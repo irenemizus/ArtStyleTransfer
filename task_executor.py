@@ -4,7 +4,7 @@ from typing import Callable
 
 from neural_style_transfer import neural_style_transfer, ContentStylePair
 
-sem = asyncio.Semaphore(2)
+sem = asyncio.Semaphore(1)
 
 
 class Task:
@@ -26,17 +26,9 @@ class Task:
         self.job = asyncio.create_task(self.__do_job())
 
     async def __do_job(self):
-        #print(f'Processing content image {self.__content_img_filename}, style image {self.__style_img_filename}; initial method: {self.__init_method}')
+        print(f'Processing content image {self.__content_n_style.content[0]}, style image {self.__content_n_style.style[0]}; initial method: {self.__init_method}')
         async with sem:
-            #for content_img_filename, style_img_filename in zip(self.__content_img_filenames, self.__style_img_filenames):
             print("awaiting neural_style_transfer")
-
-            # async def neural_style_transfer(content_n_style: ContentStylePair, height,
-            #                                 content_weight, style_weight, tv_weight,
-            #                                 optimizer, model, init_method,
-            #                                 iters_num, levels_num):
-
-
             async for result in neural_style_transfer(self.__content_n_style, self.__height,
                                                        self.__content_weight, self.__style_weight, self.__tv_weight,
                                                        self.__optimizer, self.__model, self.__init_method,
@@ -86,7 +78,6 @@ class Executor:
             vv = (value[0], value[1].copy() if value[1] is not None else None)
             self.__progress[key] = vv
 
-
     async def __print_progress(self):
         async for task_id, p in self.progress():
             print("Progress: " + str(task_id) + ", " + str(p[0]))
@@ -119,21 +110,14 @@ tv_weight = 0e3
 optimizer = 'lbfgs'
 model = 'vgg19'
 init_method = 'content'
-levels_num = 2
-iters_num = 20
+levels_num = 1
+iters_num = 2000
 
 executor = Executor(height, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
 
 
 async def main():
     pass
-#     tasks_count = 20
-#     executor = Executor()
-#     for i in range(tasks_count):
-#         executor.add_task(str(uuid.uuid4()), "custom_folder/luda1024.jpg")
-#
-#     await executor.run()
-#     print('\nAll done.')
 
 
 if __name__ == '__main__':

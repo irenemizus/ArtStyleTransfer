@@ -1,8 +1,6 @@
 import uuid
 
 import neural_style_transfer
-import task_executor
-from task_executor import Executor
 from quart import Quart, render_template, send_file, request, make_response
 import os
 import cv2
@@ -31,7 +29,7 @@ async def backend_task():
         content_img = neural_style_transfer.load_image(os.path.join(content_images_dir, pair[0]))
         style_img = neural_style_transfer.load_image(os.path.join(style_images_dir, pair[1]))
 
-        await executor.add_task(str(uuid.uuid4()), neural_style_transfer.ContentStylePair(content_img, style_img))
+        await executor.add_task(str(uuid.uuid4()), neural_style_transfer.ContentStylePair((pair[0], content_img), (pair[1], style_img)))
 
     await executor.run()
 
