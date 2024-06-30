@@ -168,25 +168,24 @@ class NeuralStyleTransfer:
             yield utils.unprepare_img(res_img), step
 
 
-# async def neural_style_transfer_fake(content_img_name, style_img_name, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, content_images_dir, style_images_dir, iters_num, levels_num):
-#     print("entering neural_style_transfer_fake")
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#     content_img_path = os.path.join(content_images_dir, content_img_name)
-#     content_img = utils.load_image(content_img_path, target_shape=height, blur=False)
-#     content_img_prep = utils.prepare_img(content_img, device)
-#     for i in range(10):
-#         content_img_prep_tmp = copy.deepcopy(content_img_prep)
-#         newImage = utils.unprepare_img(content_img_prep_tmp)
-#         yield i, newImage
+async def resize(img, level):
+    base_diameter = 256
 
-
-async def resize(img, height):
     current_height, current_width = img.shape[:2]
-    new_width = int(current_width * (height / current_height))
-    return cv2.resize(copy.deepcopy(img), (new_width, height), interpolation=cv2.INTER_CUBIC)
+    if current_height >= current_width:
+        base_width = base_diameter
+        base_height = int(base_width * (current_height / current_width))
+    else:
+        base_height = base_diameter
+        base_width = int(base_height * (current_width / current_height))
+
+    new_width = base_width * pow(2, level)
+    new_height = base_height * pow(2, level)
+
+    return cv2.resize(copy.deepcopy(img), (new_width, new_height), interpolation=cv2.INTER_CUBIC)
 
 
-async def neural_style_transfer(content_n_style: ContentStylePair, height,
+async def neural_style_transfer(content_n_style: ContentStylePair,
                                 content_weight, style_weight, tv_weight,
                                 optimizer, model, init_method,
                                 iters_num, levels_num):
@@ -197,20 +196,20 @@ async def neural_style_transfer(content_n_style: ContentStylePair, height,
     model_name = model
     optimizer_name = optimizer
 
-    content_img_level0 = await resize(content_n_style.content[1], height=height) #utils.load_image(content_img_path, target_shape=height, blur=False)
-    style_img_level0 = await resize(content_n_style.style[1], height=height) #utils.load_image(style_img_path, target_shape=height, blur=False)
+    level = 0
+
+    content_img_level0 = await resize(content_n_style.content[1], level=level) #utils.load_image(content_img_path, target_shape=height, blur=False)
+    style_img_level0 = await resize(content_n_style.style[1], level=level) #utils.load_image(style_img_path, target_shape=height, blur=False)
 
     # Starting the processing
     content_img_levels = [ content_img_level0 ]
     style_img_levels = [ style_img_level0 ]
-    height_next = height
-    level = 0
     print("entering levels")
-    for level in range(1, levels_num):
-        height_next *= 2
 
-        content_img_next = await resize(content_n_style.content[1], height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
-        style_img_next = await resize(content_n_style.style[1], height=height_next) #utils.load_image(style_img_path, target_shape=height_next, blur=False)
+    for level in range(1, levels_num):
+
+        content_img_next = await resize(content_n_style.content[1], level=level) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
+        style_img_next = await resize(content_n_style.style[1], level=level) #utils.load_image(style_img_path, target_shape=height_next, blur=False)
 
         content_img_levels.insert(0, content_img_next)
         style_img_levels.insert(0, style_img_next)
@@ -221,13 +220,13 @@ async def neural_style_transfer(content_n_style: ContentStylePair, height,
         init_img_next = gaussian_noise_img * 0.5
         init_img_name = 'random'
     elif init_method == 'content':
-        init_img_next = await resize(content_n_style.content[1], height=height_next) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
+        init_img_next = await resize(content_n_style.content[1], level=level) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
         init_img_name = content_n_style.content[0]
         #init_img_next = 0.5 * (init_img_next + gaussian_noise_img)
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image
-        style_img_resized = await resize(content_n_style.style[1], height=height_next) #utils.load_image(style_img_path, target_shape=np.asarray(content_img_levels[0].shape[2:]), blur=False)
+        style_img_resized = await resize(content_n_style.style[1], level=level) #utils.load_image(style_img_path, target_shape=np.asarray(content_img_levels[0].shape[2:]), blur=False)
         init_img_next = style_img_resized
         init_img_name = content_n_style.style[0]
 
@@ -264,7 +263,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_img_name", type=str, help="content image name", default='figures.jpg')
     parser.add_argument("--style_img_name", type=str, help="style image name", default='vg_starry_night.jpg')
-    parser.add_argument("--height", type=int, help="height of content and style images", default=512)
 
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e1)
     parser.add_argument("--style_weight", type=float, help="weight factor for style loss", default=1e5)
@@ -280,7 +278,6 @@ if __name__ == "__main__":
 
     content_img_name = args.content_img_name
     style_img_name = args.style_img_name
-    height = args.height
     content_weight = args.content_weight
     style_weight = args.style_weight
     tv_weight = args.tv_weight
@@ -295,4 +292,4 @@ if __name__ == "__main__":
     style_img_path = os.path.join(style_images_dir, style_img_name)
 
     content_n_style = ContentStylePair((content_img_name, load_image(content_img_path)), (style_img_name, load_image(style_img_path)))
-    results_path = neural_style_transfer(content_n_style, height, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
+    results_path = neural_style_transfer(content_n_style, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
