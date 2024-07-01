@@ -1,0 +1,5 @@
+numpy==1.26.3
+opencv-python==4.8.1.78
+quart==0.19.6
+matplotlib
+aiogram

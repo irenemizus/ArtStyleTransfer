@@ -20,10 +20,10 @@
 </head>
 <body>
 
-    {% for id, pr in zip(image_ids, image_prog) %}
+    {% for card in cards %}
         <div class="div">
-            <img class="image" src="{{ url_for('generated', image_id=id) }}" alt="{{ id }}" />
-                <div>{{ "Progress = %.2f%% (iteration #%d of %d)" % (pr[0], pr[1], pr[2]) }}</div>
+            <img class="image" src="{{ url_for('generated', image_id=card['image_id']) }}" alt="{{ card['image_id'] }}" />
+                <div>{{ "Progress = %.2f%% (iteration #%d of %d)" % (card['percent'], card['cur_iter'], card['iters_num']) }}</div>
         </div>
     {% endfor %}
 

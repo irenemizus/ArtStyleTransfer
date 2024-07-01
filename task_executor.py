@@ -1,16 +1,18 @@
 import asyncio
-import uuid
+import functools
+import time
 from typing import Callable
 
 from neural_style_transfer import neural_style_transfer, ContentStylePair
 
-sem = asyncio.Semaphore(1)
+sem = asyncio.Semaphore(2)
 
 
 class Task:
-    def __init__(self, content_n_style: ContentStylePair, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, task_id: str, report: Callable):
+    def __init__(self, content_n_style: ContentStylePair, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, task_id: str, report: Callable, job_done: Callable):
         self.__task_id = task_id
         self.__report = report
+        self.__job_done_callback = job_done
 
         self.__content_n_style = content_n_style
         self.__content_weight = content_weight
@@ -35,12 +37,12 @@ class Task:
                 result_copy = (result[0], result[1].copy())
                 await self.__report(self.__task_id, result_copy)
 
+            await self.__job_done_callback(self.__task_id)
 
 class Executor:
-    def __init__(self, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num):
+    def __init__(self, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, report_progress=None):
         self.__tasks = {}
         self.__progress = {}
-        #self.__has_been_run = False
 
         self.__content_weight = content_weight
         self.__style_weight = style_weight
@@ -51,28 +53,31 @@ class Executor:
         self.__iters_num = iters_num
         self.__levels_num = levels_num
 
-        self.__lock = asyncio.Lock()
+        self.__progress_lock = asyncio.Lock()
+        self.__tasks_lock = asyncio.Lock()
+
+        self.__report_progress = report_progress
 
     async def get_progress(self, key):
-        async with self.__lock:
+        async with self.__progress_lock:
             value = self.__progress[key]
             vv = (value[0], value[1].copy() if value[1] is not None else None)
             return vv
 
     async def progress(self):
-        async with self.__lock:
+        async with self.__progress_lock:
             for pr in self.__progress.items():
                 yield pr
 
     async def task_ids(self):
         res = []
-        async with self.__lock:
+        async with self.__progress_lock:
             for k in self.__progress.keys():
                 res.append(k)
         return res
 
     async def set_progress(self, key, value):
-        async with self.__lock:
+        async with self.__progress_lock:
             vv = (value[0], value[1].copy() if value[1] is not None else None)
             self.__progress[key] = vv
 
@@ -84,34 +89,40 @@ class Executor:
     async def __report(self, task_id, result):
         await self.set_progress(task_id, result)
         await self.__print_progress()
+        if self.__report_progress is not None:
+            await self.__report_progress(task_id, result)
+
+    async def __job_done(self, task_id):
+        async with self.__tasks_lock:
+            print(f"Task {task_id} done")
+
+            self.__tasks.pop(task_id)
+
 
     async def add_task(self, task_id: str, content_n_style: ContentStylePair):
-        #if self.__has_been_run:
-        #    raise Exception('The backend is already running.')
         await self.set_progress(task_id, (-1, None))
-        self.__tasks[task_id] = Task(content_n_style,
-                                     self.__content_weight, self.__style_weight, self.__tv_weight,
-                                     self.__optimizer, self.__model, self.__init_method,
-                                     self.__iters_num, self.__levels_num,
-                                     task_id=task_id, report=self.__report)
+        async with self.__tasks_lock:
+            self.__tasks[task_id] = Task(content_n_style,
+                                         self.__content_weight, self.__style_weight, self.__tv_weight,
+                                         self.__optimizer, self.__model, self.__init_method,
+                                         self.__iters_num, self.__levels_num,
+                                         task_id=task_id, report=self.__report, job_done=self.__job_done)
+            #self.__tasks[task_id].job.add_done_callback(self.bar)# self.__task_done) #functools.partial(self.__task_done, self=self, task_id=task_id))
+            print(f"Task {task_id} run")
 
-    async def run(self):
-        #self.__has_been_run = True
-        jobs = [task.job for task in self.__tasks.values()]
-        await asyncio.wait(jobs)
-
-
-#height = 256
-content_weight = 1e1
-style_weight = 1e5
-tv_weight = 0e3
-optimizer = 'lbfgs'
-model = 'vgg19'
-init_method = 'content'
-levels_num = 1
-iters_num = 1000
-
-executor = Executor(content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
+    async def run(self, forever=False):
+        while forever:
+            waiting_print = False
+            while True:
+                async with self.__tasks_lock:
+                    any_tasks_left = len(self.__tasks) > 0
+                    if not any_tasks_left: break
+                    jobs = [task.job for task in self.__tasks.values()]
+                waiting_print = True
+                await asyncio.wait(jobs)
+            if waiting_print:
+                print("No more tasks in the queue. Waiting for the new ones...")
+            time.sleep(1)
 
 
 async def main():

@@ -20,7 +20,7 @@ async def backend_task():
 
     content_style_filename_pairs = [
         ('luda.jpg', 'mona_lisa.jpg'),
-        ('lion.jpg', 'mona_lisa.jpg'),
+        ('luda.jpg', 'lion.jpg'),
         ('luda.jpg', 'vg_starry_night.jpg'),
         ('lion.jpg', 'vg_starry_night.jpg'),
     ]
@@ -39,18 +39,25 @@ async def startup():
     app.add_background_task(backend_task)
 
 
+
 @app.route("/")
 async def index():
-    image_prog = []
-    prog_data = []
+    cards = []
     image_ids = await executor.task_ids()
     for image_id in image_ids:
         image_progress = await executor.get_progress(image_id)
-        prog_data.append(image_progress[0] if image_progress[0] > 0 else 0)
-        cur_iter = prog_data[0] / 100.0 * iters_num
-        prog_data.extend([cur_iter, iters_num])
-        image_prog.append(prog_data)
-    return await render_template('index.html', image_ids=image_ids, image_prog=image_prog)
+        percent = image_progress[0] if image_progress[0] > 0 else 0
+        cur_iter = percent / 100.0 * iters_num
+        card = {
+            "image_id": image_id,
+            "percent": percent,
+            "cur_iter": cur_iter,
+            "iters_num": iters_num
+        }
+
+        cards.append(card)
+
+    return await render_template('index.html', cards=cards)
 
 
 @app.route('/generated/<image_id>', endpoint='generated')
@@ -75,4 +82,4 @@ async def serve_image(image_id):
 
 
 if __name__ == '__main__':
-    app.run(host="127.0.0.1", port=8080, debug=True)
+    app.run(host="0.0.0.0", port=8080, debug=True)

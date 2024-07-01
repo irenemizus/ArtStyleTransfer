@@ -8,6 +8,7 @@ print(f"Script's directory: {MYPATH}")
 os.environ["TORCH_HOME"] = MYPATH
 
 import utils
+from torchvision import transforms
 
 import torch
 from torch.optim import Adam, LBFGS
@@ -17,10 +18,14 @@ import argparse
 import asyncio
 
 
+IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
+IMAGENET_STD_NEUTRAL = [1, 1, 1]
+
+
 class ContentStylePair:
     def __init__(self, content, style):
-        self.content = content
-        self.style = style
+        self.content = content      # (content_img_name, content_img)
+        self.style = style          # (style_img_name, style_img)
 
 
 class RepresentationBuilder:
@@ -96,7 +101,7 @@ class NeuralStyleTransfer:
         neural_net, content_feature_maps_index, style_feature_maps_indices = utils.prepare_model(self.__model_name, self.__device)
         print(f'Using {self.__model_name} in the optimization procedure.')
 
-        init_img = utils.prepare_img(init_img, self.__device)
+        init_img = prepare_img(init_img, self.__device)
         # we are tuning optimizing_img's pixels! (that's why requires_grad=True)
         optimizing_img = Variable(init_img, requires_grad=True)
 
@@ -109,8 +114,8 @@ class NeuralStyleTransfer:
 
         loss_builders = []
         for content_img, style_img in zip(content_imgs, self.__style_imgs):
-            content_img = utils.prepare_img(content_img, self.__device)
-            style_img = utils.prepare_img(style_img, self.__device)
+            content_img = prepare_img(content_img, self.__device)
+            style_img = prepare_img(style_img, self.__device)
 
             loss_builders.append(LossBuilder(content_feature_maps_index, style_feature_maps_indices, content_img, style_img,
                                             neural_net, content_weight, style_weight, tv_weight))
@@ -137,8 +142,8 @@ class NeuralStyleTransfer:
                 if i == 0:
                     optimizing_img_levels = [optimizing_img]
                 else:
-                    sw = optimizing_img_levels[i - 1].shape[3]
-                    sh = optimizing_img_levels[i - 1].shape[2]
+                    sw = optimizing_img_levels[i - 1].shape[2]
+                    sh = optimizing_img_levels[i - 1].shape[3]
                     conv_twice = torch.nn.functional.interpolate(optimizing_img_levels[i - 1], size=(sw // 2, sh // 2), mode='bicubic')
                     optimizing_img_levels.append(conv_twice)
 
@@ -165,7 +170,7 @@ class NeuralStyleTransfer:
         while step < iters_num:
             await asyncio.get_running_loop().run_in_executor(None, optimizer.step, optimizer_step_callback)
             res_img = copy.deepcopy(optimizing_img)
-            yield utils.unprepare_img(res_img), step
+            yield unprepare_img(res_img), step
 
 
 async def resize(img, level):
@@ -198,8 +203,8 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
 
     level = 0
 
-    content_img_level0 = await resize(content_n_style.content[1], level=level) #utils.load_image(content_img_path, target_shape=height, blur=False)
-    style_img_level0 = await resize(content_n_style.style[1], level=level) #utils.load_image(style_img_path, target_shape=height, blur=False)
+    content_img_level0 = await resize(content_n_style.content[1], level=level)
+    style_img_level0 = await resize(content_n_style.style[1], level=level)
 
     # Starting the processing
     content_img_levels = [ content_img_level0 ]
@@ -208,8 +213,8 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
 
     for level in range(1, levels_num):
 
-        content_img_next = await resize(content_n_style.content[1], level=level) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
-        style_img_next = await resize(content_n_style.style[1], level=level) #utils.load_image(style_img_path, target_shape=height_next, blur=False)
+        content_img_next = await resize(content_n_style.content[1], level=level)
+        style_img_next = await resize(content_n_style.style[1], level=level)
 
         content_img_levels.insert(0, content_img_next)
         style_img_levels.insert(0, style_img_next)
@@ -220,13 +225,13 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         init_img_next = gaussian_noise_img * 0.5
         init_img_name = 'random'
     elif init_method == 'content':
-        init_img_next = await resize(content_n_style.content[1], level=level) #utils.load_image(content_img_path, target_shape=height_next, blur=False)
+        init_img_next = await resize(content_n_style.content[1], level=level)
         init_img_name = content_n_style.content[0]
         #init_img_next = 0.5 * (init_img_next + gaussian_noise_img)
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image
-        style_img_resized = await resize(content_n_style.style[1], level=level) #utils.load_image(style_img_path, target_shape=np.asarray(content_img_levels[0].shape[2:]), blur=False)
+        style_img_resized = await resize(content_n_style.style[1], level=level)
         init_img_next = style_img_resized
         init_img_name = content_n_style.style[0]
 
@@ -247,6 +252,28 @@ def load_image(img_path):
     img = img.astype(np.float32)  # convert from uint8 to float32
     img /= 255.0  # get to [0, 1] range
     return img
+
+
+def prepare_img(img, device):
+    # normalize using ImageNet's mean
+    # [0, 255] range worked much better for me than [0, 1] range (even though PyTorch models were trained on latter)
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Lambda(lambda x: x.mul(255)),
+        transforms.Normalize(mean=IMAGENET_MEAN_255, std=IMAGENET_STD_NEUTRAL)
+    ])
+
+    return transform(img.copy()).to(device).unsqueeze(0)
+
+
+def unprepare_img(img):
+    # reversing prepare_img()
+    dump_img = img.permute([0, 2, 3, 1]).squeeze(0).to("cpu").detach().numpy()
+    dump_img += np.array(IMAGENET_MEAN_255).reshape((1, 1, 3))
+
+    dump_img = dump_img.astype(np.float32) / 255
+
+    return dump_img
 
 
 if __name__ == "__main__":
