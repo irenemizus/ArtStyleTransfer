@@ -5,13 +5,15 @@ from quart import Quart, render_template, send_file, request, make_response
 import os
 import cv2
 import numpy as np
-from task_executor import executor, iters_num
+from task_executor import Executor
+from config import *
 
 os.environ["QUART_APP"] = __file__
 app = Quart(__name__)
 
 app.jinja_env.globals.update(zip=zip)
 
+executor = Executor(content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
 
 async def backend_task():
     default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')

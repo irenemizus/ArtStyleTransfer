@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import time
 from typing import Callable
 
@@ -95,7 +94,6 @@ class Executor:
     async def __job_done(self, task_id):
         async with self.__tasks_lock:
             print(f"Task {task_id} done")
-
             self.__tasks.pop(task_id)
 
 
@@ -107,7 +105,6 @@ class Executor:
                                          self.__optimizer, self.__model, self.__init_method,
                                          self.__iters_num, self.__levels_num,
                                          task_id=task_id, report=self.__report, job_done=self.__job_done)
-            #self.__tasks[task_id].job.add_done_callback(self.bar)# self.__task_done) #functools.partial(self.__task_done, self=self, task_id=task_id))
             print(f"Task {task_id} run")
 
     async def run(self, forever=False):

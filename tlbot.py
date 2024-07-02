@@ -20,7 +20,7 @@ from magic_filter import MagicFilter
 
 import neural_style_transfer
 from task_executor import Executor
-
+from config import *
 
 # Bot token can be obtained via https://t.me/BotFather
 TOKEN = "7433346137:AAF2vjCKBNK_WlXJKBR1_7qFIWN4G5KExyE"
@@ -31,14 +31,6 @@ bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 # All handlers should be attached to the Router (or Dispatcher)
 dp = Dispatcher()
 
-content_weight = 1e1
-style_weight = 1e5
-tv_weight = 0e3
-optimizer = 'lbfgs'
-model = 'vgg19'
-init_method = 'content'
-levels_num = 2
-iters_num = 800
 
 class ChatProgress:
     def __init__(self, chat_id):
@@ -107,8 +99,6 @@ class BotState:
 
     def get_style_img(self):
         return self.style_img
-
-
 
 
 states: dict[int, BotState] = {}
