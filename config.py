@@ -4,5 +4,5 @@ tv_weight = 0e3
 optimizer = 'lbfgs'
 model = 'vgg19'
 init_method = 'content'
-levels_num = 3
+levels_num = 2
 iters_num = 600
