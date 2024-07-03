@@ -4,7 +4,9 @@ from typing import Callable
 
 from neural_style_transfer import neural_style_transfer, ContentStylePair
 
-sem = asyncio.Semaphore(2)
+from config import simultaneous_tasks_count
+
+sem = asyncio.Semaphore(simultaneous_tasks_count)
 
 
 class Task:
@@ -121,11 +123,3 @@ class Executor:
                 print("No more tasks in the queue. Waiting for the new ones...")
             time.sleep(1)
 
-
-async def main():
-    pass
-
-
-if __name__ == '__main__':
-    # run the asyncio program
-    asyncio.run(main())

@@ -1,5 +1,6 @@
 import copy
 import os
+import random
 
 import cv2
 
@@ -17,6 +18,7 @@ import numpy as np
 import argparse
 import asyncio
 
+from config import noise_factor     # HACK!
 
 IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
 IMAGENET_STD_NEUTRAL = [1, 1, 1]
@@ -190,13 +192,23 @@ async def resize(img, level):
     return cv2.resize(copy.deepcopy(img), (new_width, new_height), interpolation=cv2.INTER_CUBIC)
 
 
+GLOBAL_VALUE_DON_T_USE = 0
+
 async def neural_style_transfer(content_n_style: ContentStylePair,
                                 content_weight, style_weight, tv_weight,
                                 optimizer, model, init_method,
                                 iters_num, levels_num):
     print("entering neural_style_transfer")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    #if device == "cuda":
+    #    global GLOBAL_VALUE_DON_T_USE
+    #    coin = GLOBAL_VALUE_DON_T_USE
+    #    GLOBAL_VALUE_DON_T_USE = (GLOBAL_VALUE_DON_T_USE + 1) % 2
+    #    device = f"{device}:{coin}"
+
+    device =  torch.device(device)
 
     model_name = model
     optimizer_name = optimizer
@@ -219,7 +231,26 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         content_img_levels.insert(0, content_img_next)
         style_img_levels.insert(0, style_img_next)
 
-    gaussian_noise_img = np.clip(np.random.normal(loc=0, scale=255, size=content_img_levels[0].shape).astype(np.float32) / 255, 0.0, 1.0)
+    # Making blurry noise with big granularity
+    noise_shape = content_img_levels[0].shape
+    nw = noise_shape[1]
+    nh = noise_shape[0]
+    gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
+
+    noise_levels = (16, 8, 4, 2)
+    noise_level_powers = (1.0, 1.5, 2.0, 1.5)
+
+    for noise_granularity, noise_power in zip(noise_levels, noise_level_powers):
+        noise_shape_div = (noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
+        gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
+        gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
+        gaussian_noise_img += gaussian_noise_img_level * noise_power
+
+    gaussian_noise_img /= sum(noise_level_powers)
+
+
+    #gaussian_noise_img = np.resize(gaussian_noise_img_lowres, content_img_levels[0].shape)
+
 
     if init_method == 'random':
         init_img_next = gaussian_noise_img * 0.5
@@ -227,7 +258,8 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     elif init_method == 'content':
         init_img_next = await resize(content_n_style.content[1], level=level)
         init_img_name = content_n_style.content[0]
-        #init_img_next = 0.5 * (init_img_next + gaussian_noise_img)
+
+        init_img_next = (1.0 - noise_factor) * init_img_next + noise_factor * gaussian_noise_img
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image

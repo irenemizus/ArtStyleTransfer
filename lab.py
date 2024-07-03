@@ -22,9 +22,13 @@ async def backend_task():
 
     content_style_filename_pairs = [
         ('luda.jpg', 'mona_lisa.jpg'),
-        ('luda.jpg', 'lion.jpg'),
-        ('luda.jpg', 'vg_starry_night.jpg'),
-        ('lion.jpg', 'vg_starry_night.jpg'),
+        ('luda.jpg', 'mosaic.jpg'),
+        ('luda.jpg', 'starry_night.jpg'),
+        ('luda.jpg', 'cubism1.jpg'),
+        ('lion.jpg', 'mona_lisa.jpg'),
+        ('lion.jpg', 'mosaic.jpg'),
+        ('lion.jpg', 'starry_night.jpg'),
+        ('lion.jpg', 'cubism1.jpg'),
     ]
 
     for pair in content_style_filename_pairs:
