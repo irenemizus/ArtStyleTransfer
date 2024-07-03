@@ -51,6 +51,7 @@ class RepresentationBuilder:
 
         rep = [ utils.gram_matrix(x) for index, x in enumerate(self.__features) if index in indices ]
 
+
         return rep if list_taken else rep[0]
 
 
@@ -200,7 +201,8 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
                                 iters_num, levels_num):
     print("entering neural_style_transfer")
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    #device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
 
     #if device == "cuda":
     #    global GLOBAL_VALUE_DON_T_USE
@@ -238,7 +240,7 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
 
     noise_levels = (16, 8, 4, 2)
-    noise_level_powers = (1.0, 1.5, 2.0, 1.5)
+    noise_level_powers = (1.0, 1.5, 2.0, 3.5)
 
     for noise_granularity, noise_power in zip(noise_levels, noise_level_powers):
         noise_shape_div = (noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
