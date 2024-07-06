@@ -121,6 +121,10 @@ async def album_handler(messages: List[types.Message]):
                     res_np = np.frombuffer(f.read(), np.uint8)
                     img_np = cv2.imdecode(res_np, cv2.IMREAD_COLOR)
                 img_np = img_np[:, :, ::-1]  # BGR -> RGB
+
+                img_np = img_np.astype(np.float32)  # convert from uint8 to float32
+                img_np /= 255.0  # get to [0, 1] range
+
                 images_to_process.append(img_np)
 
         if len(images_to_process) != 2:

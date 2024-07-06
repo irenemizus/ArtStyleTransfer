@@ -21,6 +21,18 @@ async def backend_task():
     style_images_dir = os.path.join(default_resource_dir, 'style-images')
 
     content_style_filename_pairs = [
+        ('bird.jpg', 'painting_cut.jpg'),
+        ('bird.jpg', 'expressive.jpg'),
+        ('bird.jpg', 'starry_night.jpg'),
+        ('bird.jpg', 'cubism2.jpg'),
+        ('car.jpg', 'painting_cut.jpg'),
+        ('car.jpg', 'expressive.jpg'),
+        ('car.jpg', 'mona_lisa_prado.jpg'),
+        ('car.jpg', 'cubism2.jpg'),
+        ('columns.jpg', 'cubism1.jpg'),
+        ('columns.jpg', 'cubism2.jpg'),
+        ('columns.jpg', 'cubism3.jpg'),
+        ('columns.jpg', 'painting_cut.jpg'),
         ('luda.jpg', 'mona_lisa.jpg'),
         ('luda.jpg', 'mosaic.jpg'),
         ('luda.jpg', 'starry_night.jpg'),

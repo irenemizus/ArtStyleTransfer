@@ -1,6 +1,7 @@
 import copy
 import os
 import random
+import traceback
 
 import cv2
 
@@ -127,48 +128,79 @@ class NeuralStyleTransfer:
         torch.autograd.set_detect_anomaly(True)
 
         def optimizer_step_callback():
-            lr = 0
-            for g in optimizer.param_groups:
-                g['lr'] *= 0.999
-                lr = g['lr']
-            print(f"new lr = {lr}")
+            try:
+                lr = 0
+                for g in optimizer.param_groups:
+                    g['lr'] *= 0.999
+                    lr = g['lr']
+                print(f"new lr = {lr}")
 
-            nonlocal step
-            if torch.is_grad_enabled():
-                optimizer.zero_grad()
+                nonlocal step
+                if torch.is_grad_enabled():
+                    optimizer.zero_grad()
 
-            # Building lower resolutions for optimizing_img
-            print(f'{self.__optimizer_name} | processing image: {init_img_name} | iteration: {step:03} :')
-            optimizing_img_levels = None
-            total_loss = None
-            for i in range(len(loss_builders)):
-                if i == 0:
-                    optimizing_img_levels = [optimizing_img]
-                else:
-                    sw = optimizing_img_levels[i - 1].shape[2]
-                    sh = optimizing_img_levels[i - 1].shape[3]
-                    conv_twice = torch.nn.functional.interpolate(optimizing_img_levels[i - 1], size=(sw // 2, sh // 2), mode='bicubic')
-                    optimizing_img_levels.append(conv_twice)
+                #
+                # # Making blurry noise with big granularity
+                # noise_shape = optimizing_img.shape
+                # nw = noise_shape[1]
+                # nh = noise_shape[0]
+                # gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
+                # for noise_granularity, noise_power in zip(noise_levels, noise_level_powers):
+                #     noise_shape_div = (
+                #     noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
+                #     # gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
+                #     gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
+                #     gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh),
+                #                                           interpolation=cv2.INTER_CUBIC)
+                #     gaussian_noise_img += gaussian_noise_img_level * noise_power
+                #
+                # gaussian_noise_img /= sum(noise_level_powers)
+                #
+                # # Compute gradients along the X and Y axis, respectively
+                # sobelX = cv2.Sobel(optimizing_img, cv2.CV_64F, 1, 0, ksize=5)
+                # sobelY = cv2.Sobel(optimizing_img, ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5)
+                # sobelX = np.absolute(sobelX)
+                # sobelY = np.absolute(sobelY)
+                # sobelCombined = np.sqrt(sobelX * sobelX + sobelY * sobelY)
+                # noise_replacement = noise_factor / np.sqrt(1.0 + sobelCombined)
 
-                total_loss_l, content_loss, style_loss, tv_loss = loss_builders[i].build(optimizing_img_levels[i])
-                if total_loss is None:
-                    total_loss = total_loss_l
-                else:
-                    previous_loss_importance = 1.0
-                    total_loss = previous_loss_importance * total_loss + total_loss_l
-                    #total_loss = torch.pow(total_loss * total_loss_l, 0.5)
+                #optimizing_img = ((1.0 - noise_replacement) * optimizing_img + noise_replacement * gaussian_noise_img).astype(np.float32)
+
+                # Building lower resolutions for optimizing_img
+                print(f'{self.__optimizer_name} | processing image: {init_img_name} | iteration: {step:03} :')
+                optimizing_img_levels = None
+                total_loss = None
+                for i in range(len(loss_builders)):
+                    if i == 0:
+                        optimizing_img_levels = [optimizing_img]
+                    else:
+                        sw = optimizing_img_levels[i - 1].shape[2]
+                        sh = optimizing_img_levels[i - 1].shape[3]
+                        conv_twice = torch.nn.functional.interpolate(optimizing_img_levels[i - 1], size=(sw // 2, sh // 2), mode='bicubic')
+                        optimizing_img_levels.append(conv_twice)
+
+                    total_loss_l, content_loss, style_loss, tv_loss = loss_builders[i].build(optimizing_img_levels[i])
+                    if total_loss is None:
+                        total_loss = total_loss_l
+                    else:
+                        previous_loss_importance = 1.0
+                        total_loss = previous_loss_importance * total_loss + total_loss_l
+                        #total_loss = torch.pow(total_loss * total_loss_l, 0.5)
+
+                    with torch.no_grad():
+                        print(f' - level {i} | level loss={total_loss_l.item():.3e}, content_loss={content_weight * content_loss.item():.3e}, style loss={style_weight * style_loss:.3e}, tv loss={tv_weight * tv_loss.item():.3e}')
+
+                if total_loss.requires_grad:
+                    total_loss.backward()
 
                 with torch.no_grad():
-                    print(f' - level {i} | level loss={total_loss_l.item():.3e}, content_loss={content_weight * content_loss.item():.3e}, style loss={style_weight * style_loss:.3e}, tv loss={tv_weight * tv_loss.item():.3e}')
+                    print(f'{self.__optimizer_name} | total loss={total_loss.item():.3e}')
 
-            if total_loss.requires_grad:
-                total_loss.backward()
-
-            with torch.no_grad():
-                print(f'{self.__optimizer_name} | total loss={total_loss.item():.3e}')
-
-            step += 1
-            return total_loss
+                step += 1
+                return total_loss
+            except:
+                traceback.print_exc()
+                raise
 
         while step < iters_num:
             await asyncio.get_running_loop().run_in_executor(None, optimizer.step, optimizer_step_callback)
@@ -195,14 +227,18 @@ async def resize(img, level):
 
 GLOBAL_VALUE_DON_T_USE = 0
 
+noise_levels = (32, 16) #, 4, 2, 1)
+noise_level_powers = (1.0, 1.0) #, 1.0, 4.0, 5.0)
+
+
 async def neural_style_transfer(content_n_style: ContentStylePair,
                                 content_weight, style_weight, tv_weight,
                                 optimizer, model, init_method,
                                 iters_num, levels_num):
     print("entering neural_style_transfer")
 
-    #device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    #device = "cpu"
 
     #if device == "cuda":
     #    global GLOBAL_VALUE_DON_T_USE
@@ -225,6 +261,9 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     style_img_levels = [ style_img_level0 ]
     print("entering levels")
 
+    #noise_levels = (16, 8, 4)
+    #noise_level_powers = (1.0, 2.0, 4.0)
+
     for level in range(1, levels_num):
 
         content_img_next = await resize(content_n_style.content[1], level=level)
@@ -233,26 +272,31 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         content_img_levels.insert(0, content_img_next)
         style_img_levels.insert(0, style_img_next)
 
+
+
     # Making blurry noise with big granularity
     noise_shape = content_img_levels[0].shape
     nw = noise_shape[1]
     nh = noise_shape[0]
     gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
-
-    noise_levels = (16, 8, 4, 2)
-    noise_level_powers = (1.0, 1.5, 2.0, 3.5)
-
     for noise_granularity, noise_power in zip(noise_levels, noise_level_powers):
         noise_shape_div = (noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
-        gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
+        #gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
+        gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
         gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
         gaussian_noise_img += gaussian_noise_img_level * noise_power
 
     gaussian_noise_img /= sum(noise_level_powers)
 
+    # Compute gradients along the X and Y axis, respectively
+    sobelX = cv2.Sobel(content_img_levels[0], cv2.CV_64F, 1, 0, ksize=5)
+    sobelY = cv2.Sobel(content_img_levels[0], ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5)
+    sobelX = np.absolute(sobelX)
+    sobelY = np.absolute(sobelY)
+    sobelCombined = np.sqrt(sobelX*sobelX + sobelY*sobelY)
+    noise_replacement = noise_factor / np.sqrt(1.0 + sobelCombined)
 
-    #gaussian_noise_img = np.resize(gaussian_noise_img_lowres, content_img_levels[0].shape)
-
+    #cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
 
     if init_method == 'random':
         init_img_next = gaussian_noise_img * 0.5
@@ -261,7 +305,7 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         init_img_next = await resize(content_n_style.content[1], level=level)
         init_img_name = content_n_style.content[0]
 
-        init_img_next = (1.0 - noise_factor) * init_img_next + noise_factor * gaussian_noise_img
+        init_img_next = ((1.0 - noise_replacement) * init_img_next + noise_replacement * gaussian_noise_img).astype(np.float32)
     else:
         # init image has same dimension as content image - this is a hard constraint
         # feature maps need to be of same size for content image and init image
@@ -308,6 +352,19 @@ def unprepare_img(img):
     dump_img = dump_img.astype(np.float32) / 255
 
     return dump_img
+
+
+def make_style_noise(style_img_np, targ_shape):
+    #cv2.imwrite("test_style.jpg", style_img_np * 255)
+    nw = targ_shape[1]
+    nh = targ_shape[0]
+    style_img_np_resized = cv2.resize(copy.deepcopy(style_img_np), dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
+    style_vect = np.ndarray.flatten(style_img_np_resized)
+    style_noise_vect = np.random.permutation(style_vect)
+
+    res = style_noise_vect.reshape(targ_shape)
+    #cv2.imwrite("test.jpg", res * 255)
+    return res
 
 
 if __name__ == "__main__":
