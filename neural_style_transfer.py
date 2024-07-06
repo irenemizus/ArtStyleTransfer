@@ -227,9 +227,6 @@ async def resize(img, level):
 
 GLOBAL_VALUE_DON_T_USE = 0
 
-noise_levels = (32, 16) #, 4, 2, 1)
-noise_level_powers = (1.0, 1.0) #, 1.0, 4.0, 5.0)
-
 
 async def neural_style_transfer(content_n_style: ContentStylePair,
                                 content_weight, style_weight, tv_weight,
@@ -261,8 +258,16 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     style_img_levels = [ style_img_level0 ]
     print("entering levels")
 
-    #noise_levels = (16, 8, 4)
-    #noise_level_powers = (1.0, 2.0, 4.0)
+    noise_levels =                      (  32,   16,    8,    1,    0)
+    noise_levels_central_amplitude =    (0.30, 0.20, 0.10, 0.20, 0.20)
+    noise_levels_peripheral_amplitude = (0.20, 0.30, 0.40, 0.10, 0.00)
+    noise_levels_dispersion =           (0.20, 0.30, 0.40, 0.60, 0.30)
+
+    # noise_levels =                      (   16,    1,    0)
+    # noise_levels_central_amplitude =    ( 0.20, 0.30, 0.50)
+    # noise_levels_peripheral_amplitude = ( 1.00, 0.00, 0.00)
+    # noise_levels_dispersion =           ( 0.40, 0.40, 0.30)
+
 
     for level in range(1, levels_num):
 
@@ -279,14 +284,27 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     nw = noise_shape[1]
     nh = noise_shape[0]
     gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
-    for noise_granularity, noise_power in zip(noise_levels, noise_level_powers):
-        noise_shape_div = (noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
-        #gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
-        gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
-        gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
-        gaussian_noise_img += gaussian_noise_img_level * noise_power
+    for noise_granularity, central_amplitude, peripheral_amplitude, dispersion_scale in zip(noise_levels, noise_levels_central_amplitude, noise_levels_peripheral_amplitude, noise_levels_dispersion):
+        if noise_granularity > 0:
+            noise_shape_div = (noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
+            # gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
+            gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
+            gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh),
+                                                  interpolation=cv2.INTER_CUBIC)
+            noise_level_gauss_mask = gaussian_mask(gaussian_noise_img_level.shape, central_amplitude, peripheral_amplitude, dispersion_scale)
+            gaussian_noise_img += gaussian_noise_img_level * noise_level_gauss_mask
 
-    gaussian_noise_img /= sum(noise_level_powers)
+        elif noise_granularity == 0:
+            constant_level_gauss_mask = gaussian_mask(gaussian_noise_img_level.shape, central_amplitude, peripheral_amplitude, dispersion_scale)
+            gaussian_noise_img += constant_level_gauss_mask
+
+
+    temp_img = copy.deepcopy(gaussian_noise_img)
+    temp_img = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
+    cv2.imwrite("noise_mask.jpg", temp_img * 255)
+    temp_img = cv2.GaussianBlur(temp_img, (107, 107), 0)
+    cv2.imwrite("noise_mask_blurry.jpg", temp_img * 255)
+    #gaussian_noise_img /= sum(noise_level_powers)
 
     # Compute gradients along the X and Y axis, respectively
     sobelX = cv2.Sobel(content_img_levels[0], cv2.CV_64F, 1, 0, ksize=5)
@@ -354,15 +372,49 @@ def unprepare_img(img):
     return dump_img
 
 
+def gaussian_mask(shape, central_amplitude, peripheral_amplitude, dispersion_scale=0.5):    # Extracting the height and width of an image
+    rows, cols = shape[:2]
+    nw = shape[1]
+    nh = shape[0]
+
+    # generating vignette mask using Gaussian
+    # resultant_kernels
+    X_resultant_kernel = cv2.getGaussianKernel(cols, nw * dispersion_scale)
+    Y_resultant_kernel = cv2.getGaussianKernel(rows, nh * dispersion_scale)
+
+    # generating resultant_kernel matrix
+    resultant_kernel = Y_resultant_kernel * X_resultant_kernel.T
+
+    gauss_norm = resultant_kernel / resultant_kernel[rows // 2, cols // 2]
+
+    # The gaussian mask functtion shall rise from central_amplitude in the centter to (almost) 1.0 on the edges
+    mask = peripheral_amplitude + gauss_norm * (central_amplitude - peripheral_amplitude) #/ np.linalg.norm(resultant_kernel)
+
+    #cv2.imwrite("test_mask.jpg", mask * 255)
+
+    # applying the mask to each channel in the input image
+    #for i in range(3):
+    #    image[:, :, i] = image[:, :, i] * mask
+
+    expanded = np.expand_dims(mask, 2)
+    res = np.repeat(expanded, 3, axis=2)
+    return res
+
+
+
 def make_style_noise(style_img_np, targ_shape):
     #cv2.imwrite("test_style.jpg", style_img_np * 255)
     nw = targ_shape[1]
     nh = targ_shape[0]
-    style_img_np_resized = cv2.resize(copy.deepcopy(style_img_np), dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
+    inp_img_copy = copy.deepcopy(style_img_np)
+    style_img_np_resized = cv2.resize(inp_img_copy, dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
+
     style_vect = np.ndarray.flatten(style_img_np_resized)
     style_noise_vect = np.random.permutation(style_vect)
 
     res = style_noise_vect.reshape(targ_shape)
+
+
     #cv2.imwrite("test.jpg", res * 255)
     return res
 
