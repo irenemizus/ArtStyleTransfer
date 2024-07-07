@@ -3,7 +3,7 @@ import torch
 from functools import reduce
 
 
-from vgg_nets import Vgg19
+from neural_nets import Vgg19
 
 # initially it takes some time for PyTorch to download the models into local cache
 def prepare_model(model, device):

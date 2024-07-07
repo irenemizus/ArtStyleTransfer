@@ -1,6 +1,5 @@
 import copy
 import os
-import random
 import traceback
 
 import cv2
@@ -9,7 +8,7 @@ MYPATH = os.path.dirname(os.path.abspath(__file__))
 print(f"Script's directory: {MYPATH}")
 os.environ["TORCH_HOME"] = MYPATH
 
-import utils
+import math_utils
 from torchvision import transforms
 
 import torch
@@ -50,7 +49,7 @@ class RepresentationBuilder:
         list_taken = isinstance(feature_map_indices, list)
         indices = feature_map_indices if list_taken else [ feature_map_indices ]
 
-        rep = [ utils.gram_matrix(x) for index, x in enumerate(self.__features) if index in indices ]
+        rep = [ math_utils.gram_matrix(x) for index, x in enumerate(self.__features) if index in indices ]
 
 
         return rep if list_taken else rep[0]
@@ -87,7 +86,7 @@ class LossBuilder:
             style_loss += torch.nn.MSELoss(reduction='mean')(gram_gt[0], gram_hat[0])
         style_loss /= len(self.__target_style_representation)
 
-        tv_loss = utils.total_variation(optimizing_img) # + utils.regularization(optimizing_img)
+        tv_loss = math_utils.total_variation(optimizing_img) # + utils.regularization(optimizing_img)
 
         total_loss = self.__content_weight * content_loss + self.__style_weight * style_loss + self.__tv_weight * tv_loss
 
@@ -102,7 +101,7 @@ class NeuralStyleTransfer:
         self.__optimizer_name = optimizer_name
 
     async def process(self, content_imgs, init_img, lr_start, iters_num, content_weight, style_weight, tv_weight, init_img_name):
-        neural_net, content_feature_maps_index, style_feature_maps_indices = utils.prepare_model(self.__model_name, self.__device)
+        neural_net, content_feature_maps_index, style_feature_maps_indices = math_utils.prepare_model(self.__model_name, self.__device)
         print(f'Using {self.__model_name} in the optimization procedure.')
 
         init_img = prepare_img(init_img, self.__device)
@@ -138,33 +137,6 @@ class NeuralStyleTransfer:
                 nonlocal step
                 if torch.is_grad_enabled():
                     optimizer.zero_grad()
-
-                #
-                # # Making blurry noise with big granularity
-                # noise_shape = optimizing_img.shape
-                # nw = noise_shape[1]
-                # nh = noise_shape[0]
-                # gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
-                # for noise_granularity, noise_power in zip(noise_levels, noise_level_powers):
-                #     noise_shape_div = (
-                #     noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
-                #     # gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
-                #     gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
-                #     gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh),
-                #                                           interpolation=cv2.INTER_CUBIC)
-                #     gaussian_noise_img += gaussian_noise_img_level * noise_power
-                #
-                # gaussian_noise_img /= sum(noise_level_powers)
-                #
-                # # Compute gradients along the X and Y axis, respectively
-                # sobelX = cv2.Sobel(optimizing_img, cv2.CV_64F, 1, 0, ksize=5)
-                # sobelY = cv2.Sobel(optimizing_img, ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5)
-                # sobelX = np.absolute(sobelX)
-                # sobelY = np.absolute(sobelY)
-                # sobelCombined = np.sqrt(sobelX * sobelX + sobelY * sobelY)
-                # noise_replacement = noise_factor / np.sqrt(1.0 + sobelCombined)
-
-                #optimizing_img = ((1.0 - noise_replacement) * optimizing_img + noise_replacement * gaussian_noise_img).astype(np.float32)
 
                 # Building lower resolutions for optimizing_img
                 print(f'{self.__optimizer_name} | processing image: {init_img_name} | iteration: {step:03} :')
@@ -278,24 +250,29 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         style_img_levels.insert(0, style_img_next)
 
 
-
     # Making blurry noise with big granularity
     noise_shape = content_img_levels[0].shape
     nw = noise_shape[1]
     nh = noise_shape[0]
     gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
-    for noise_granularity, central_amplitude, peripheral_amplitude, dispersion_scale in zip(noise_levels, noise_levels_central_amplitude, noise_levels_peripheral_amplitude, noise_levels_dispersion):
-        if noise_granularity > 0:
-            noise_shape_div = (noise_shape[0] // noise_granularity, noise_shape[1] // noise_granularity, noise_shape[2])
+    for noise_spots_number, central_amplitude, peripheral_amplitude, dispersion_scale in zip(noise_levels, noise_levels_central_amplitude, noise_levels_peripheral_amplitude, noise_levels_dispersion):
+        if noise_spots_number > 0:
+            if nh <= nw:
+                noise_shape_div_h = noise_spots_number
+                noise_shape_div_w = nw // nh * noise_spots_number
+            else:
+                noise_shape_div_w = noise_spots_number
+                noise_shape_div_h = nh // nw * noise_spots_number
+
+            noise_shape_div = (noise_shape_div_h, noise_shape_div_w, noise_shape[2])
             # gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
             gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
             gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh),
                                                   interpolation=cv2.INTER_CUBIC)
             noise_level_gauss_mask = gaussian_mask(gaussian_noise_img_level.shape, central_amplitude, peripheral_amplitude, dispersion_scale)
             gaussian_noise_img += gaussian_noise_img_level * noise_level_gauss_mask
-
-        elif noise_granularity == 0:
-            constant_level_gauss_mask = gaussian_mask(gaussian_noise_img_level.shape, central_amplitude, peripheral_amplitude, dispersion_scale)
+        elif noise_spots_number == 0:
+            constant_level_gauss_mask = gaussian_mask(noise_shape, central_amplitude, peripheral_amplitude, dispersion_scale)
             gaussian_noise_img += constant_level_gauss_mask
 
 

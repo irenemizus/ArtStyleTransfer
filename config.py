@@ -4,7 +4,8 @@ tv_weight = 1e3
 optimizer = 'lbfgs'
 model = 'vgg19'
 init_method = 'content'
-levels_num = 2 # 4 for maximum resolution
+levels_num = 2
+# 4 for maximum resolution
 iters_num = 800 # 1500 for maximum quality
 
 noise_factor = 0.95 #0.9
