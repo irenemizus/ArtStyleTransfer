@@ -7,6 +7,6 @@ init_method = 'content'
 levels_num = 2 # 4 for maximum resolution
 iters_num = 800 # 1500 for maximum quality
 
-noise_factor = 0.8 #0.9
+noise_factor = 0.95 #0.9
 
 simultaneous_tasks_count = 2  # 1 if the levels_num > 3

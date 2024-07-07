@@ -172,7 +172,7 @@ class NeuralStyleTransfer:
                 total_loss = None
                 for i in range(len(loss_builders)):
                     if i == 0:
-                        optimizing_img_levels = [optimizing_img]
+                        optimizing_img_levels = [ optimizing_img ]
                     else:
                         sw = optimizing_img_levels[i - 1].shape[2]
                         sh = optimizing_img_levels[i - 1].shape[3]
@@ -314,7 +314,9 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     sobelCombined = np.sqrt(sobelX*sobelX + sobelY*sobelY)
     noise_replacement = noise_factor / np.sqrt(1.0 + sobelCombined)
 
-    #cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
+    cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
+    noise_replacement = cv2.GaussianBlur(noise_replacement, ksize=(21, 21), sigmaX=15.0)
+    cv2.imwrite("test_noise_rep_blurry.jpg", noise_replacement * 255)
 
     if init_method == 'random':
         init_img_next = gaussian_noise_img * 0.5
@@ -414,6 +416,9 @@ def make_style_noise(style_img_np, targ_shape):
 
     res = style_noise_vect.reshape(targ_shape)
 
+    # res[:, :, 0] = (res[:,:,0] + res[:,:,1] + res[:,:,2]) / 3
+    # res[:, :, 1] = res[:,:,0]
+    # res[:, :, 2] = res[:,:,0]
 
     #cv2.imwrite("test.jpg", res * 255)
     return res
@@ -439,7 +444,7 @@ if __name__ == "__main__":
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=0e3)
 
     parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
-    parser.add_argument("--model", type=str, choices=['vgg16', 'vgg19'], default='vgg19')
+    parser.add_argument("--model", type=str, choices=['vgg19'], default='vgg19')
     parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
     parser.add_argument("--iters_num", type=int, help="number of iterations to perform", default=200)
     parser.add_argument("--levels_num", type=int, help="number of pyramid levels", default=3)
