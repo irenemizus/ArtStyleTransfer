@@ -18,8 +18,6 @@ import numpy as np
 import argparse
 import asyncio
 
-from config import noise_factor     # HACK!
-
 IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
 IMAGENET_STD_NEUTRAL = [1, 1, 1]
 
@@ -203,7 +201,7 @@ GLOBAL_VALUE_DON_T_USE = 0
 async def neural_style_transfer(content_n_style: ContentStylePair,
                                 content_weight, style_weight, tv_weight,
                                 optimizer, model, init_method,
-                                iters_num, levels_num):
+                                iters_num, levels_num, noise_factor):
     print("entering neural_style_transfer")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -419,6 +417,7 @@ if __name__ == "__main__":
     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e1)
     parser.add_argument("--style_weight", type=float, help="weight factor for style loss", default=1e5)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=0e3)
+    parser.add_argument("--noise_factor", type=float, help="strength of noise, which is added to the initial image", default=0.95)
 
     parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
     parser.add_argument("--model", type=str, choices=['vgg19'], default='vgg19')
@@ -432,7 +431,8 @@ if __name__ == "__main__":
     style_img_name = args.style_img_name
     content_weight = args.content_weight
     style_weight = args.style_weight
-    tv_weight = args.tv_weight
+    tv_weight = args.tv_weightn
+    noise_factor = args.noise_factor
     optimizer = args.optimizer
     model = args.model
     init_method = args.init_method
@@ -444,4 +444,4 @@ if __name__ == "__main__":
     style_img_path = os.path.join(style_images_dir, style_img_name)
 
     content_n_style = ContentStylePair((content_img_name, load_image(content_img_path)), (style_img_name, load_image(style_img_path)))
-    results_path = neural_style_transfer(content_n_style, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
+    results_path = neural_style_transfer(content_n_style, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, noise_factor)

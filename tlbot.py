@@ -20,9 +20,9 @@ from aiogram.methods import SendPhoto
 
 from aiogram_media_group import media_group_handler, MediaGroupFilter
 
+import config
 import neural_style_transfer
 from task_executor import Executor
-from config import *
 
 from token_DO_NOT_COMMIT import TOKEN
 # The file token_DO_NOT_COMMIT.py should look like this:
@@ -81,7 +81,8 @@ async def task_progress_callback(task_id, result):
         traceback.print_exc()
         raise
 
-executor = Executor(content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, report_progress=task_progress_callback)
+config = config.Config()
+executor = Executor(config.content_weight, config.style_weight, config.tv_weight, config.optimizer, config.model, config.init_method, config.iters_num, config.levels_num, config.noise_factor, report_progress=task_progress_callback)
 
 
 @dp.message(CommandStart())

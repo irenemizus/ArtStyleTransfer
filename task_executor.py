@@ -4,13 +4,14 @@ from typing import Callable
 
 from neural_style_transfer import neural_style_transfer, ContentStylePair
 
-from config import simultaneous_tasks_count
+import config
 
-sem = asyncio.Semaphore(simultaneous_tasks_count)
+config = config.Config()
+sem = asyncio.Semaphore(config.simultaneous_tasks_count)
 
 
 class Task:
-    def __init__(self, content_n_style: ContentStylePair, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, task_id: str, report: Callable, job_done: Callable):
+    def __init__(self, content_n_style: ContentStylePair, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, noise_factor, task_id: str, report: Callable, job_done: Callable):
         self.__task_id = task_id
         self.__report = report
         self.__job_done_callback = job_done
@@ -24,6 +25,7 @@ class Task:
         self.__init_method = init_method
         self.__iters_num = iters_num
         self.__levels_num = levels_num
+        self.__noise_factor = noise_factor
 
         self.job = asyncio.create_task(self.__do_job())
 
@@ -34,14 +36,14 @@ class Task:
             async for result in neural_style_transfer(self.__content_n_style,
                                                        self.__content_weight, self.__style_weight, self.__tv_weight,
                                                        self.__optimizer, self.__model, self.__init_method,
-                                                       self.__iters_num, self.__levels_num):
+                                                       self.__iters_num, self.__levels_num, self.__noise_factor):
                 result_copy = (result[0], result[1].copy())
                 await self.__report(self.__task_id, result_copy)
 
             await self.__job_done_callback(self.__task_id)
 
 class Executor:
-    def __init__(self, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, report_progress=None):
+    def __init__(self, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, noise_factor, report_progress=None):
         self.__tasks = {}
         self.__progress = {}
 
@@ -53,6 +55,7 @@ class Executor:
         self.__init_method = init_method
         self.__iters_num = iters_num
         self.__levels_num = levels_num
+        self.__noise_factor = noise_factor
 
         self.__progress_lock = asyncio.Lock()
         self.__tasks_lock = asyncio.Lock()
@@ -105,7 +108,7 @@ class Executor:
             self.__tasks[task_id] = Task(content_n_style,
                                          self.__content_weight, self.__style_weight, self.__tv_weight,
                                          self.__optimizer, self.__model, self.__init_method,
-                                         self.__iters_num, self.__levels_num,
+                                         self.__iters_num, self.__levels_num, self.__noise_factor,
                                          task_id=task_id, report=self.__report, job_done=self.__job_done)
             print(f"Task {task_id} run")
 

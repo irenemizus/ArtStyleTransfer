@@ -1,19 +1,20 @@
 import uuid
 
 import neural_style_transfer
-from quart import Quart, render_template, send_file, request, make_response
+from quart import Quart, render_template, make_response
 import os
 import cv2
 import numpy as np
 from task_executor import Executor
-from config import *
+import config
 
 os.environ["QUART_APP"] = __file__
 app = Quart(__name__)
 
 app.jinja_env.globals.update(zip=zip)
 
-executor = Executor(content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num)
+config = config.Config()
+executor = Executor(config.content_weight, config.style_weight, config.tv_weight, config.optimizer, config.model, config.init_method, config.iters_num, config.levels_num, config.noise_factor)
 
 async def backend_task():
     default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
@@ -65,12 +66,12 @@ async def index():
     for image_id in image_ids:
         image_progress = await executor.get_progress(image_id)
         percent = image_progress[0] if image_progress[0] > 0 else 0
-        cur_iter = percent / 100.0 * iters_num
+        cur_iter = percent / 100.0 * config.iters_num
         card = {
             "image_id": image_id,
             "percent": percent,
             "cur_iter": cur_iter,
-            "iters_num": iters_num
+            "iters_num": config.iters_num
         }
 
         cards.append(card)
