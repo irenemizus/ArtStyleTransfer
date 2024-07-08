@@ -201,7 +201,8 @@ GLOBAL_VALUE_DON_T_USE = 0
 async def neural_style_transfer(content_n_style: ContentStylePair,
                                 content_weight, style_weight, tv_weight,
                                 optimizer, model, init_method,
-                                iters_num, levels_num, noise_factor):
+                                iters_num, levels_num, noise_factor, noise_levels, noise_levels_central_amplitude,
+                                noise_levels_peripheral_amplitude, noise_levels_dispersion):
     print("entering neural_style_transfer")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -228,17 +229,6 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     style_img_levels = [ style_img_level0 ]
     print("entering levels")
 
-    noise_levels =                      (  32,   16,    8,    1,    0)
-    noise_levels_central_amplitude =    (0.30, 0.20, 0.10, 0.20, 0.20)
-    noise_levels_peripheral_amplitude = (0.20, 0.30, 0.40, 0.10, 0.00)
-    noise_levels_dispersion =           (0.20, 0.30, 0.40, 0.60, 0.30)
-
-    # noise_levels =                      (   16,    1,    0)
-    # noise_levels_central_amplitude =    ( 0.20, 0.30, 0.50)
-    # noise_levels_peripheral_amplitude = ( 1.00, 0.00, 0.00)
-    # noise_levels_dispersion =           ( 0.40, 0.40, 0.30)
-
-
     for level in range(1, levels_num):
 
         content_img_next = await resize(content_n_style.content[1], level=level)
@@ -253,50 +243,71 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
     nw = noise_shape[1]
     nh = noise_shape[0]
     gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
-    for noise_spots_number, central_amplitude, peripheral_amplitude, dispersion_scale in zip(noise_levels, noise_levels_central_amplitude, noise_levels_peripheral_amplitude, noise_levels_dispersion):
-        if noise_spots_number > 0:
-            if nh <= nw:
-                noise_shape_div_h = noise_spots_number
-                noise_shape_div_w = nw // nh * noise_spots_number
+    for noise_granularity, central_amplitude, peripheral_amplitude, dispersion_scale in zip(noise_levels, noise_levels_central_amplitude, noise_levels_peripheral_amplitude, noise_levels_dispersion):
+        if noise_granularity == 0:
+            # Granularity zero means constant value, no noise.
+            constant_level_gauss_mask = gaussian_mask(noise_shape, central_amplitude, peripheral_amplitude, dispersion_scale)
+            gaussian_noise_img += constant_level_gauss_mask
+        else:
+            if noise_granularity > 0:
+                # Positive granularity value means the number of noise spots along the shortest image axis
+                # The noise spot size in this case is proportional to the image size
+                noise_spots_number = noise_granularity
+
+                if nh <= nw:
+                    noise_shape_div_h = noise_spots_number
+                    noise_shape_div_w = nw * noise_spots_number // nh
+                else:
+                    noise_shape_div_w = noise_spots_number
+                    noise_shape_div_h = nh * noise_spots_number // nw
             else:
-                noise_shape_div_w = noise_spots_number
-                noise_shape_div_h = nh // nw * noise_spots_number
+                # Negative noise granularity means the size of a spot (i.e. -2 means spot sized 2x2 on every resolution)
+                noise_shape_div_w = nw // (-noise_granularity)
+                noise_shape_div_h = nh // (-noise_granularity)
 
             noise_shape_div = (noise_shape_div_h, noise_shape_div_w, noise_shape[2])
-            # gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
-            gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
+
+            USE_NORMAL_NOISE_JUST_FOR_DEMONSTRATION = False
+            if USE_NORMAL_NOISE_JUST_FOR_DEMONSTRATION:
+                gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
+            else:
+                gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
+
             gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh),
                                                   interpolation=cv2.INTER_CUBIC)
             noise_level_gauss_mask = gaussian_mask(gaussian_noise_img_level.shape, central_amplitude, peripheral_amplitude, dispersion_scale)
             gaussian_noise_img += gaussian_noise_img_level * noise_level_gauss_mask
-        elif noise_spots_number == 0:
-            constant_level_gauss_mask = gaussian_mask(noise_shape, central_amplitude, peripheral_amplitude, dispersion_scale)
-            gaussian_noise_img += constant_level_gauss_mask
 
 
     temp_img = copy.deepcopy(gaussian_noise_img)
-    temp_img = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
+    #temp_img = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("noise_mask.jpg", temp_img * 255)
     temp_img = cv2.GaussianBlur(temp_img, (107, 107), 0)
     cv2.imwrite("noise_mask_blurry.jpg", temp_img * 255)
     #gaussian_noise_img /= sum(noise_level_powers)
 
-    # Compute gradients along the X and Y axis, respectively
-    sobelX = cv2.Sobel(content_img_levels[0], cv2.CV_64F, 1, 0, ksize=5)
-    sobelY = cv2.Sobel(content_img_levels[0], ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5)
-    sobelX = np.absolute(sobelX)
-    sobelY = np.absolute(sobelY)
-    sobelCombined = np.sqrt(sobelX*sobelX + sobelY*sobelY)
-    noise_replacement = noise_factor / np.sqrt(1.0 + sobelCombined)
+    IGNORE_GRADIENT_MAP_JUST_FOR_DEMONSTRATION = False
+    if IGNORE_GRADIENT_MAP_JUST_FOR_DEMONSTRATION:
+        noise_replacement = noise_factor
+    else:
+        # Compute gradients along the X and Y axis, respectively
+        sobelX = cv2.Sobel(content_img_levels[0], cv2.CV_64F, 1, 0, ksize=5)
+        sobelY = cv2.Sobel(content_img_levels[0], ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5)
+        sobelX = np.absolute(sobelX)
+        sobelY = np.absolute(sobelY)
 
-    cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
-    noise_replacement = cv2.GaussianBlur(noise_replacement, ksize=(21, 21), sigmaX=15.0)
-    cv2.imwrite("test_noise_rep_blurry.jpg", noise_replacement * 255)
+        sobelCombined = np.sqrt(sobelX*sobelX + sobelY*sobelY)
+        noise_replacement = noise_factor / np.sqrt(1.0 + sobelCombined)
+
+        cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
+        noise_replacement = cv2.GaussianBlur(noise_replacement, ksize=(21, 21), sigmaX=15.0)
+        cv2.imwrite("test_noise_rep_blurry.jpg", noise_replacement * 255)
+
 
     if init_method == 'random':
         init_img_next = gaussian_noise_img * 0.5
         init_img_name = 'random'
-    elif init_method == 'content':
+    elif init_method == 'content+noise':
         init_img_next = await resize(content_n_style.content[1], level=level)
         init_img_name = content_n_style.content[0]
 
@@ -386,7 +397,7 @@ def make_style_noise(style_img_np, targ_shape):
     inp_img_copy = copy.deepcopy(style_img_np)
     style_img_np_resized = cv2.resize(inp_img_copy, dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
 
-    style_vect = np.ndarray.flatten(style_img_np_resized)
+    style_vect = style_img_np_resized.reshape(nh * nw, -1)  #.flatten(style_img_np_resized)
     style_noise_vect = np.random.permutation(style_vect)
 
     res = style_noise_vect.reshape(targ_shape)
@@ -418,10 +429,20 @@ if __name__ == "__main__":
     parser.add_argument("--style_weight", type=float, help="weight factor for style loss", default=1e5)
     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=0e3)
     parser.add_argument("--noise_factor", type=float, help="strength of noise, which is added to the initial image", default=0.95)
+    parser.add_argument("--noise_levels", type=tuple, help="tuple of noise spots number along the shortest axis of the content image for a few noise levels", default=(32, 16, 8, 1, 0))
+    parser.add_argument("--noise_levels_central_amplitude", type=tuple,
+                        help="tuple of noise envelope strength in the center of the image for a few noise levels",
+                        default=(0.30, 0.20, 0.10, 0.20, 0.20))
+    parser.add_argument("--noise_levels_peripheral_amplitude", type=tuple,
+                        help="tuple of noise envelope strength at the periphery of the image for a few noise levels",
+                        default=(0.20, 0.30, 0.40, 0.10, 0.00))
+    parser.add_argument("--noise_levels_dispersion", type=tuple,
+                        help="tuple of noise envelope dispersion for a few noise levels",
+                        default=(0.20, 0.30, 0.40, 0.60, 0.30))
 
     parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
     parser.add_argument("--model", type=str, choices=['vgg19'], default='vgg19')
-    parser.add_argument("--init_method", type=str, choices=['random', 'content', 'style'], default='content')
+    parser.add_argument("--init_method", type=str, choices=['random', 'content+noise', 'style'], default='content+noise')
     parser.add_argument("--iters_num", type=int, help="number of iterations to perform", default=200)
     parser.add_argument("--levels_num", type=int, help="number of pyramid levels", default=3)
 
@@ -433,6 +454,10 @@ if __name__ == "__main__":
     style_weight = args.style_weight
     tv_weight = args.tv_weightn
     noise_factor = args.noise_factor
+    noise_levels = args.noise_levels
+    noise_levels_central_amplitude = args.noise_levels_central_amplitude
+    noise_levels_peripheral_amplitude = args.noise_levels_peripheral_amplitude
+    noise_levels_dispersion = args.noise_levels_dispersion
     optimizer = args.optimizer
     model = args.model
     init_method = args.init_method
@@ -444,4 +469,7 @@ if __name__ == "__main__":
     style_img_path = os.path.join(style_images_dir, style_img_name)
 
     content_n_style = ContentStylePair((content_img_name, load_image(content_img_path)), (style_img_name, load_image(style_img_path)))
-    results_path = neural_style_transfer(content_n_style, content_weight, style_weight, tv_weight, optimizer, model, init_method, iters_num, levels_num, noise_factor)
+    results_path = neural_style_transfer(content_n_style, content_weight, style_weight, tv_weight, optimizer, model,
+                                         init_method, iters_num, levels_num,
+                                         noise_factor, noise_levels, noise_levels_central_amplitude,
+                                         noise_levels_peripheral_amplitude, noise_levels_dispersion)

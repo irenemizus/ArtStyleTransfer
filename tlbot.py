@@ -82,7 +82,12 @@ async def task_progress_callback(task_id, result):
         raise
 
 config = config.Config()
-executor = Executor(config.content_weight, config.style_weight, config.tv_weight, config.optimizer, config.model, config.init_method, config.iters_num, config.levels_num, config.noise_factor, report_progress=task_progress_callback)
+executor = Executor(config.content_weight, config.style_weight, config.tv_weight,
+                    config.optimizer, config.model, config.init_method,
+                    config.iters_num, config.levels_num, config.noise_factor,
+                    config.noise_levels, config.noise_levels_central_amplitude,
+                    config.noise_levels_peripheral_amplitude, config.noise_levels_dispersion,
+                    report_progress=task_progress_callback)
 
 
 @dp.message(CommandStart())

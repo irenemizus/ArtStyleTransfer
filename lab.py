@@ -13,8 +13,65 @@ app = Quart(__name__)
 
 app.jinja_env.globals.update(zip=zip)
 
-config = config.Config()
-executor = Executor(config.content_weight, config.style_weight, config.tv_weight, config.optimizer, config.model, config.init_method, config.iters_num, config.levels_num, config.noise_factor)
+# No-noise config, useless, just for demonstration
+NO_NOISE_CONFIG = config.Config(
+    noise_factor=0.0,
+    noise_levels=                      (),
+    noise_levels_central_amplitude=    (),
+    noise_levels_peripheral_amplitude= (),
+    noise_levels_dispersion =          ()
+)
+
+# Pixel-wide noise config, useless, just for demonstration
+PIXEL_WIDE_NOISE_CONFIG = config.Config(
+    noise_factor=0.5,
+    noise_levels=                      (  -1, ),
+    noise_levels_central_amplitude=    ( 1.0, ),
+    noise_levels_peripheral_amplitude= ( 1.0, ),
+    noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+)
+
+# 128-per-line noise config, useless, just for demonstration
+NOISE_128_CONFIG = config.Config(
+    noise_factor=0.7,
+    noise_levels=                      ( 128, ),
+    noise_levels_central_amplitude=    ( 1.0, ),
+    noise_levels_peripheral_amplitude= ( 1.0, ),
+    noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+)
+
+# 16-per-line noise config, useless, just for demonstration
+NOISE_16_CONFIG = config.Config(
+    noise_factor=0.7,
+    noise_levels=                      (  16, ),
+    noise_levels_central_amplitude=    ( 1.0, ),
+    noise_levels_peripheral_amplitude= ( 1.0, ),
+    noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+)
+
+
+# Gauss noise config, middle-sized image
+# (the parameter values are specified in the declaration of the Config class)
+STANDARD_GAUSS_NOISE_CONFIG = config.Config()
+
+LIGHT_GAUSS_NOISE_CONFIG = config.Config(
+    content_weight=1e4,
+    style_weight=4e4,
+    tv_weight=1e3,
+    noise_factor=0.95,
+    noise_levels=                      (   8,   16,   32,   -1,    0),
+    noise_levels_central_amplitude=    (0.40, 0.30, 0.10, 0.20, 0.20),
+    noise_levels_peripheral_amplitude= (0.30, 0.40, 0.40, 0.10, 0.00)
+)
+
+# The current lab config
+config = LIGHT_GAUSS_NOISE_CONFIG
+
+executor = Executor(config.content_weight, config.style_weight, config.tv_weight,
+                    config.optimizer, config.model, config.init_method,
+                    config.iters_num, config.levels_num, config.noise_factor,
+                    config.noise_levels, config.noise_levels_central_amplitude,
+                    config.noise_levels_peripheral_amplitude, config.noise_levels_dispersion)
 
 async def backend_task():
     default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
