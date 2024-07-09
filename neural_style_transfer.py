@@ -82,7 +82,7 @@ class LossBuilder:
         # discrepancy from the content image
 
         # Adding random noise on each step (experimental feature)
-        noise_power = 0.5
+        noise_power = 0 #0.5
         noise = noise_power * torch.clip((0.5 * torch.randn(self.__target_content_representation.shape)) + 0.5, min=0.0, max=1.0)
         noise = noise.to(self.__target_content_representation.device)
 

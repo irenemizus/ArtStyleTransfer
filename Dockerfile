@@ -23,7 +23,7 @@ RUN apt install -y python3-pip
 
 # installing the requirements
 WORKDIR /opt/ast
-ADD hub ./hub
+#ADD hub ./hub
 ADD data ./data
 ADD templates ./templates
 COPY *.py requirements*.txt  ./
