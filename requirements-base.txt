@@ -1,4 +1,4 @@
-numpy==1.26.3
+numpy==1.24.4
 opencv-python==4.8.1.78
 quart==0.19.6
 matplotlib

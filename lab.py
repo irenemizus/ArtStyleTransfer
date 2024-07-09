@@ -56,17 +56,17 @@ STANDARD_GAUSS_NOISE_CONFIG = config.Config()
 
 LIGHT_GAUSS_NOISE_CONFIG = config.Config(
     content_weight=1e3,
-    style_weight=1e1,
+    style_weight=1e3,
     tv_weight=0e0,
     levels_num=2,
     iters_num=1500,
-    noise_factor=0.2, #0.95,
+    noise_factor=0.95,
     noise_levels=                      (  32,   64,  128,   -1,    0),
     noise_levels_central_amplitude=    (0.10, 0.15, 0.5, 0.10, 0.00),
     noise_levels_peripheral_amplitude= (0.20, 0.30, 0.10, 0.80, 0.00))
 
 # The current lab config
-config = LIGHT_GAUSS_NOISE_CONFIG
+config = STANDARD_GAUSS_NOISE_CONFIG
 
 executor = Executor(config.content_weight, config.style_weight, config.tv_weight,
                     config.optimizer, config.model, config.init_method,
@@ -92,10 +92,10 @@ async def backend_task():
         ('columns.jpg', 'cubism2.jpg'),
         ('columns.jpg', 'cubism3.jpg'),
         ('columns.jpg', 'matisse2.jpg'),
-        ('luda.jpg', 'mona_lisa.jpg'),
-        ('luda.jpg', 'mosaic.jpg'),
-        ('luda.jpg', 'starry_night.jpg'),
-        ('luda.jpg', 'cubism1.jpg'),
+        ('girl_with_gun.jpg', 'mona_lisa.jpg'),
+        ('girl_with_gun.jpg', 'mosaic.jpg'),
+        ('girl_with_gun.jpg', 'starry_night.jpg'),
+        ('girl_with_gun.jpg', 'cubism1.jpg'),
         ('lion.jpg', 'mona_lisa.jpg'),
         ('lion.jpg', 'mosaic.jpg'),
         ('lion.jpg', 'starry_night.jpg'),
@@ -150,16 +150,17 @@ async def serve_image(image_id):
     image_progress = await executor.get_progress(image_id)
     im = image_progress[1]
     if im is not None:
-        # Encode the resized image to PNG
+        # Encode the resized image to JPG
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 75]
         im = np.clip(im * 255, 0, 255).astype('uint8')
-        _, im_bytes_np = cv2.imencode('.png', im[:, :, ::-1])
+        _, im_bytes_np = cv2.imencode('.jpg', im[:, :, ::-1], encode_param)
 
         # Construct raw bytes string
         bytes_str = im_bytes_np.tobytes()
 
         # Create response given the bytes
         response = await make_response(bytes_str)
-        response.headers['Content-Type'] = 'image/png'
+        response.headers['Content-Type'] = 'image/jpg'
     else:
         response = await make_response("No image yet")
 

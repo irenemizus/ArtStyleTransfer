@@ -1,5 +1,5 @@
 import copy
-import os
+import os, sys
 import traceback
 
 import cv2
@@ -80,7 +80,13 @@ class LossBuilder:
 
         current_content_representation = current_rep_builder.build_content(self.__content_feature_maps_index)
         # discrepancy from the content image
-        content_loss = torch.nn.MSELoss(reduction='mean')(self.__target_content_representation, current_content_representation)
+
+        # Adding random noise on each step (experimental feature)
+        noise_power = 0.5
+        noise = noise_power * torch.clip((0.5 * torch.randn(self.__target_content_representation.shape)) + 0.5, min=0.0, max=1.0)
+        noise = noise.to(self.__target_content_representation.device)
+
+        content_loss = torch.nn.MSELoss(reduction='mean')(self.__target_content_representation + noise, current_content_representation)
 
         current_style_representation = current_rep_builder.build_style(self.__style_feature_maps_indices)
 
@@ -292,9 +298,19 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
 
     temp_img = copy.deepcopy(gaussian_noise_img)
     #temp_img = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
-    cv2.imwrite("noise_mask.jpg", temp_img * 255)
+    try:
+        cv2.imwrite("noise_mask.jpg", temp_img * 255)
+    except:
+        sys.stderr.write("Couldn't save noise_mask.jpg!")
+        traceback.print_exc()
+
     temp_img = cv2.GaussianBlur(temp_img, (107, 107), 0)
-    cv2.imwrite("noise_mask_blurry.jpg", temp_img * 255)
+    try:
+        cv2.imwrite("noise_mask_blurry.jpg", temp_img * 255)
+    except:
+        sys.stderr.write("Couldn't save noise_mask_blurry.jpg!")
+        traceback.print_exc()
+
     #gaussian_noise_img /= sum(noise_level_powers)
 
     IGNORE_GRADIENT_MAP_JUST_FOR_DEMONSTRATION = False
@@ -314,9 +330,12 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         a = 5.0
         noise_replacement = a * noise_factor / (a + sobelCombined)
 
-        cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
-        cv2.imwrite("test_noise_rep_blurry.jpg", noise_replacement * 255)
-
+        try:
+            cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
+            cv2.imwrite("test_noise_rep_blurry.jpg", noise_replacement * 255)
+        except:
+            sys.stderr.write("Couldn't save gradient test images!")
+            traceback.print_exc()
 
     if init_method == 'random':
         init_img_next = gaussian_noise_img * 0.5
