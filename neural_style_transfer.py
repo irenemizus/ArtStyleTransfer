@@ -18,17 +18,20 @@ import numpy as np
 import argparse
 import asyncio
 
+# ImageNet statistics
 IMAGENET_MEAN_255 = [123.675, 116.28, 103.53]
 IMAGENET_STD_NEUTRAL = [1, 1, 1]
 
 
 class ContentStylePair:
+    """ Pairs content image - style image """
     def __init__(self, content, style):
         self.content = content      # (content_img_name, content_img)
         self.style = style          # (style_img_name, style_img)
 
 
 class RepresentationBuilder:
+    """ A class for calculating of input (content or style) image representations by a set of the given neural net's feature maps """
     def __init__(self, image, neural_net):
         self.__image = image
         self.__neural_net = neural_net
@@ -39,6 +42,7 @@ class RepresentationBuilder:
         list_taken = isinstance(feature_map_indices, list)
         indices = feature_map_indices if list_taken else [ feature_map_indices ]
 
+        # content representations
         rep = [ x.squeeze(axis=0) for index, x in enumerate(self.__features) if index in indices ]
 
         return rep if list_taken else rep[0]
@@ -47,13 +51,14 @@ class RepresentationBuilder:
         list_taken = isinstance(feature_map_indices, list)
         indices = feature_map_indices if list_taken else [ feature_map_indices ]
 
+        # style representations
         rep = [ math_utils.gram_matrix(x) for index, x in enumerate(self.__features) if index in indices ]
-
 
         return rep if list_taken else rep[0]
 
 
 class LossBuilder:
+    """ A class for calculating loss functions """
     def __init__(self, content_feature_maps_index, style_feature_maps_indices, target_content_image, target_style_image, neural_net, content_weight, style_weight, tv_weight):
         self.__content_feature_maps_index = content_feature_maps_index
         self.__style_feature_maps_indices = style_feature_maps_indices
@@ -74,24 +79,29 @@ class LossBuilder:
         current_rep_builder = RepresentationBuilder(image=optimizing_img, neural_net=self.__neural_net)
 
         current_content_representation = current_rep_builder.build_content(self.__content_feature_maps_index)
+        # discrepancy from the content image
         content_loss = torch.nn.MSELoss(reduction='mean')(self.__target_content_representation, current_content_representation)
 
         current_style_representation = current_rep_builder.build_style(self.__style_feature_maps_indices)
 
-        # Calculating style representation for hires
+        # calculating style representation for hires
         style_loss = 0.0
         for gram_gt, gram_hat in zip(self.__target_style_representation, current_style_representation):
+            # discrepancy from the style image
             style_loss += torch.nn.MSELoss(reduction='mean')(gram_gt[0], gram_hat[0])
         style_loss /= len(self.__target_style_representation)
 
+        # total variation loss (rough denoiser)
         tv_loss = math_utils.total_variation(optimizing_img) # + utils.regularization(optimizing_img)
 
+        # total loss
         total_loss = self.__content_weight * content_loss + self.__style_weight * style_loss + self.__tv_weight * tv_loss
 
         return total_loss, content_loss, style_loss, tv_loss
 
 
 class NeuralStyleTransfer:
+    """ The main class for calculating of artistic style transfer """
     def __init__(self, device, model_name, style_imgs, optimizer_name):
         self.__device = device
         self.__model_name = model_name
@@ -99,6 +109,7 @@ class NeuralStyleTransfer:
         self.__optimizer_name = optimizer_name
 
     async def process(self, content_imgs, init_img, lr_start, iters_num, content_weight, style_weight, tv_weight, init_img_name):
+        # obtaining feature map indices
         neural_net, content_feature_maps_index, style_feature_maps_indices = math_utils.prepare_model(self.__model_name, self.__device)
         print(f'Using {self.__model_name} in the optimization procedure.')
 
@@ -297,10 +308,13 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         sobelY = np.absolute(sobelY)
 
         sobelCombined = np.sqrt(sobelX*sobelX + sobelY*sobelY)
-        noise_replacement = noise_factor / np.sqrt(1.0 + sobelCombined)
+        sobelCombined = np.clip(sobelCombined, 0.0, 100)
+
+        sobelCombined = cv2.GaussianBlur(sobelCombined, ksize=(101, 101), sigmaX=0.2)
+        a = 5.0
+        noise_replacement = a * noise_factor / (a + sobelCombined)
 
         cv2.imwrite("test_noise_rep.jpg", noise_replacement * 255)
-        noise_replacement = cv2.GaussianBlur(noise_replacement, ksize=(21, 21), sigmaX=15.0)
         cv2.imwrite("test_noise_rep_blurry.jpg", noise_replacement * 255)
 
 
@@ -321,21 +335,15 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
 
     nst = NeuralStyleTransfer(device, model_name, style_img_levels, optimizer_name)
     print("entering processing loop")
-    async for img, cur_iter in nst.process(content_img_levels, init_img_next, 10.0, iters_num, content_weight, style_weight, tv_weight, init_img_name):
+    lr_start = 10.0
+    async for img, cur_iter in nst.process(content_img_levels, init_img_next, lr_start, iters_num, content_weight, style_weight, tv_weight, init_img_name):
         print("in the processing loop")
         percent = cur_iter / iters_num * 100.0
         cur_iter += 1
         yield percent, img
 
 
-def load_image(img_path):
-    if not os.path.exists(img_path):
-        raise Exception(f'Path does not exist: {img_path}')
-    img = cv2.imread(img_path)[:, :, ::-1]  # [:, :, ::-1] converts BGR (opencv format...) into RGB
 
-    img = img.astype(np.float32)  # convert from uint8 to float32
-    img /= 255.0  # get to [0, 1] range
-    return img
 
 
 def prepare_img(img, device):
@@ -410,66 +418,66 @@ def make_style_noise(style_img_np, targ_shape):
     return res
 
 
-if __name__ == "__main__":
-    #
-    # fixed args - don't change these unless you have a good reason
-    #
-    default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
-    content_images_dir = os.path.join(default_resource_dir, 'content-images')
-    style_images_dir = os.path.join(default_resource_dir, 'style-images')
-    #
-    # modifiable args - feel free to play with these (only small subset is exposed by design to avoid cluttering)
-    # sorted so that the ones on the top are more likely to be changed than the ones on the bottom
-    #
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--content_img_name", type=str, help="content image name", default='figures.jpg')
-    parser.add_argument("--style_img_name", type=str, help="style image name", default='vg_starry_night.jpg')
-
-    parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e1)
-    parser.add_argument("--style_weight", type=float, help="weight factor for style loss", default=1e5)
-    parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=0e3)
-    parser.add_argument("--noise_factor", type=float, help="strength of noise, which is added to the initial image", default=0.95)
-    parser.add_argument("--noise_levels", type=tuple, help="tuple of noise spots number along the shortest axis of the content image for a few noise levels", default=(32, 16, 8, 1, 0))
-    parser.add_argument("--noise_levels_central_amplitude", type=tuple,
-                        help="tuple of noise envelope strength in the center of the image for a few noise levels",
-                        default=(0.30, 0.20, 0.10, 0.20, 0.20))
-    parser.add_argument("--noise_levels_peripheral_amplitude", type=tuple,
-                        help="tuple of noise envelope strength at the periphery of the image for a few noise levels",
-                        default=(0.20, 0.30, 0.40, 0.10, 0.00))
-    parser.add_argument("--noise_levels_dispersion", type=tuple,
-                        help="tuple of noise envelope dispersion for a few noise levels",
-                        default=(0.20, 0.30, 0.40, 0.60, 0.30))
-
-    parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
-    parser.add_argument("--model", type=str, choices=['vgg19'], default='vgg19')
-    parser.add_argument("--init_method", type=str, choices=['random', 'content+noise', 'style'], default='content+noise')
-    parser.add_argument("--iters_num", type=int, help="number of iterations to perform", default=200)
-    parser.add_argument("--levels_num", type=int, help="number of pyramid levels", default=3)
-
-    args = parser.parse_args()
-
-    content_img_name = args.content_img_name
-    style_img_name = args.style_img_name
-    content_weight = args.content_weight
-    style_weight = args.style_weight
-    tv_weight = args.tv_weightn
-    noise_factor = args.noise_factor
-    noise_levels = args.noise_levels
-    noise_levels_central_amplitude = args.noise_levels_central_amplitude
-    noise_levels_peripheral_amplitude = args.noise_levels_peripheral_amplitude
-    noise_levels_dispersion = args.noise_levels_dispersion
-    optimizer = args.optimizer
-    model = args.model
-    init_method = args.init_method
-    iters_num = args.iters_num
-    levels_num = args.levels_num
-
-    # original NST (Neural Style Transfer) algorithm (Gatys et al.)
-    content_img_path = os.path.join(content_images_dir, content_img_name)
-    style_img_path = os.path.join(style_images_dir, style_img_name)
-
-    content_n_style = ContentStylePair((content_img_name, load_image(content_img_path)), (style_img_name, load_image(style_img_path)))
-    results_path = neural_style_transfer(content_n_style, content_weight, style_weight, tv_weight, optimizer, model,
-                                         init_method, iters_num, levels_num,
-                                         noise_factor, noise_levels, noise_levels_central_amplitude,
-                                         noise_levels_peripheral_amplitude, noise_levels_dispersion)
+# if __name__ == "__main__":
+#     #
+#     # fixed args - don't change these unless you have a good reason
+#     #
+#     default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
+#     content_images_dir = os.path.join(default_resource_dir, 'content-images')
+#     style_images_dir = os.path.join(default_resource_dir, 'style-images')
+#     #
+#     # modifiable args - feel free to play with these (only small subset is exposed by design to avoid cluttering)
+#     # sorted so that the ones on the top are more likely to be changed than the ones on the bottom
+#     #
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--content_img_name", type=str, help="content image name", default='figures.jpg')
+#     parser.add_argument("--style_img_name", type=str, help="style image name", default='vg_starry_night.jpg')
+#
+#     parser.add_argument("--content_weight", type=float, help="weight factor for content loss", default=1e1)
+#     parser.add_argument("--style_weight", type=float, help="weight factor for style loss", default=1e5)
+#     parser.add_argument("--tv_weight", type=float, help="weight factor for total variation loss", default=0e3)
+#     parser.add_argument("--noise_factor", type=float, help="strength of noise, which is added to the initial image", default=0.95)
+#     parser.add_argument("--noise_levels", type=tuple, help="tuple of noise spots number along the shortest axis of the content image for a few noise levels", default=(32, 16, 8, 1, 0))
+#     parser.add_argument("--noise_levels_central_amplitude", type=tuple,
+#                         help="tuple of noise envelope strength in the center of the image for a few noise levels",
+#                         default=(0.30, 0.20, 0.10, 0.20, 0.20))
+#     parser.add_argument("--noise_levels_peripheral_amplitude", type=tuple,
+#                         help="tuple of noise envelope strength at the periphery of the image for a few noise levels",
+#                         default=(0.20, 0.30, 0.40, 0.10, 0.00))
+#     parser.add_argument("--noise_levels_dispersion", type=tuple,
+#                         help="tuple of noise envelope dispersion for a few noise levels",
+#                         default=(0.20, 0.30, 0.40, 0.60, 0.30))
+#
+#     parser.add_argument("--optimizer", type=str, choices=['lbfgs', 'adam'], default='lbfgs')
+#     parser.add_argument("--model", type=str, choices=['vgg19'], default='vgg19')
+#     parser.add_argument("--init_method", type=str, choices=['random', 'content+noise', 'style'], default='content+noise')
+#     parser.add_argument("--iters_num", type=int, help="number of iterations to perform", default=200)
+#     parser.add_argument("--levels_num", type=int, help="number of pyramid levels", default=3)
+#
+#     args = parser.parse_args()
+#
+#     content_img_name = args.content_img_name
+#     style_img_name = args.style_img_name
+#     content_weight = args.content_weight
+#     style_weight = args.style_weight
+#     tv_weight = args.tv_weightn
+#     noise_factor = args.noise_factor
+#     noise_levels = args.noise_levels
+#     noise_levels_central_amplitude = args.noise_levels_central_amplitude
+#     noise_levels_peripheral_amplitude = args.noise_levels_peripheral_amplitude
+#     noise_levels_dispersion = args.noise_levels_dispersion
+#     optimizer = args.optimizer
+#     model = args.model
+#     init_method = args.init_method
+#     iters_num = args.iters_num
+#     levels_num = args.levels_num
+#
+#     # original NST (Neural Style Transfer) algorithm (Gatys et al.)
+#     content_img_path = os.path.join(content_images_dir, content_img_name)
+#     style_img_path = os.path.join(style_images_dir, style_img_name)
+#
+#     content_n_style = ContentStylePair((content_img_name, lab.load_image(content_img_path)), (style_img_name, lab.load_image(style_img_path)))
+#     results_path = neural_style_transfer(content_n_style, content_weight, style_weight, tv_weight, optimizer, model,
+#                                          init_method, iters_num, levels_num,
+#                                          noise_factor, noise_levels, noise_levels_central_amplitude,
+#                                          noise_levels_peripheral_amplitude, noise_levels_dispersion)

@@ -35,7 +35,7 @@ def gram_matrix(x, should_normalize=True):
 def total_variation(y):
     mean_x = torch.mean(torch.abs(y[:, :, :, :-1] - y[:, :, :, 1:]))
     mean_y = torch.mean(torch.abs(y[:, :, :-1, :] - y[:, :, 1:, :]))
-    return mean_x + mean_y
+    return (mean_x*mean_x + mean_y*mean_y)  #torch.sqrt
 
 
 def regularization(y):
