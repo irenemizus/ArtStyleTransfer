@@ -1,6 +1,10 @@
 # Art Style Transfer
 <em>Implementation and further improvement of the classical Artistic Neural Style Transfer algorithm by Gatys et al.</em>
 
+
+
+## Algorithm Description
+
 The <a href="https://arxiv.org/abs/1508.06576">original algorithm by Gatys et al.</a> is based on the idea of using a few intermediate layers of a pretrained neural 
 net to get features from the so-called "content" and "style" images and harnessing the obtained feature maps for 
 transferring the corresponding features from the style image to the content one.
@@ -21,7 +25,7 @@ To overcome the above flaws the following improvements were implemented:
 allows to increase the convergence rate in the "smooth" regions and stabilize it at the "sharp" edges reducing noise repercussions around them.
 Also different noise levels help to amplify the style features of different sizes at once.
 
-## Pyramid loss algorithm
+## Pyramid Loss Algorithm
 This algorithm implements an idea of minimizing loss function values for several sizes of the content-style pairs of images
 <em>simultaneously</em>. To achieve that the following steps are performed:
 1. Aligning the original content and style images by the smaller dimension to a chosen power of 2 by resizing them bicubically.
@@ -42,7 +46,7 @@ the original Gatys' loss function values are calculated and summed together. <em
 With this approach all the scales of features are extracted from the input images - the large features are amplified on
 the small image levels, while the small features are extracted on the large ones.
 
-## Noise adding
+## Adding Some Noise
 All the mentioned above results in a quite satisfactory quality for images that have more or less uniform contrast 
 (like the picture of a car or columns). But there is a noticeable problem with the image of a bird at a clean sky.
 This picture suffers from 2 diseases: "the sky baldness" and "the edge distortion". Both could be overcome by adding 
@@ -66,8 +70,76 @@ modification was needed to lower the level of noise at the central part of an im
 large-scale features from there, and thus visually distinguish the central foreground objects from the more detailed 
 background. The final version of the images can be seen on Fig. 6.
 
-## User interface
+## Installation Guide (tested on Debian 12)
+To install please clone the repository to your working machine and follow these simple steps:
+1. Create and activate a new python virtual environment inside the project folder. 
+   Also, make sure that the required system packages are installed: 
+   ```bash
+   $ sudo apt install python3.11-venv libgl1-mesa-glx libglib2.0-0 python3-pip
+   ```
+   Then create the virtual environment itself: 
+   ```bash
+   $ cd ArtStyleTransfer
+   $ python -m venv ./venv
+   ```
+   Activate the new virtual environment:
+   ```bash
+   $ . venv/bin/activate
+   ```
+
+2. Install all the packages, which are listed inside the files `requirements-base.txt` and `requirements-torch.txt`:
+   ```bash
+   $ pip install -r requirements-base.txt
+   $ pip install -r requirements-torch.txt
+   ```
+   The project expects a GPU compatible with CUDA 12.1.
+
+3. To run the web UI of the "lab", just execute the command:
+   ```bash
+   $ python lab.py
+   ```
+4. To run the Telegram bot, first create a file `token_DO_NOT_COMMIT.py` in the current directory with the following content:
+   ```
+   TOKEN = "YOUR_BOT_TOKEN"
+   ```
+   Bot token `"YOUR_BOT_TOKEN"` can be obtained via https://t.me/BotFather . 
+   It is assumed that in the process of obtaining the token you will also create your own bot. The instructions of `BotFatther` are self-explanatory. 
+
+5. After the bot is created and the token is obtained and set, you can just run the bot backend. 
+   ```bash
+   $ python tlbot.py 
+   ```
+   
+## Installation Guide (Dockerfile)   
+   It is also possible to use Dockerfile from the project folder to create a Docker image, which allows for automatically 
+running the Telegram bot. To do this build the Docker image with the command
+   ```bash
+   $ docker build -t ast .  
+   ```
+   and run it by
+   ```bash
+   $ docker run ast
+   ```
+
+## User Interface
 Two variants of asynchronous UI are implemented for the current project:
 * <b>lab.py</b>: a web-interface, mostly for testing purposes, showing a table of pre-configured images (you can see screenshots of it on this page). 
 * <b>tlbot.py</b>: a Telegram bot, which allows to set up a task and obtain a style-transferred image in a simple and casual way.   
 
+## Usage Guide
+### The Bot
+To use the bot, just send to it a pair of images <em>in one message</em>. The first image will be taken as a content image,
+the second - as a style. The bot will start working, producing an intermediate result each 20% of the progress.
+
+### The Lab
+Run `python lab.py`, after a couple seconds it will start producing images and reporting them. To see the report, open your 
+browser at `http://<host>:8080`. The page doesn't update itself, refresh it manually.
+
+The `lab.py` app is not interactive. All the configuration is done in the code itself (see `config.py` for the default settings).
+
+# Original Images
+## Content
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/original-content-images.png?raw=true" style="width: 600pt"></img>
+
+## Style
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/original-style-images.png?raw=true" style="width: 600pt"></img>
