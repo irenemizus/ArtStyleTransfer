@@ -1,7 +1,11 @@
 # Art Style Transfer
 <em>Implementation and further improvement of the classical Artistic Neural Style Transfer algorithm by Gatys et al.</em>
 
-
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/result-birds.png?raw=true" style="width: 600pt"></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/result-cars.png?raw=true" style="width: 600pt"></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/result-columns.png?raw=true" style="width: 600pt"></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/result-girls.png?raw=true" style="width: 600pt"></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/result-lions.png?raw=true" style="width: 600pt"></img>
 
 ## Algorithm Description
 
