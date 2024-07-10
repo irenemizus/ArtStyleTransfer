@@ -53,6 +53,7 @@ NOISE_16_CONFIG = config.Config(
 # (the parameter values are specified in the declaration of the Config class)
 STANDARD_GAUSS_NOISE_CONFIG = config.Config()
 
+# Light gauss noise config, experimental one
 LIGHT_GAUSS_NOISE_CONFIG = config.Config(
     content_weight=1e3,
     style_weight=1e3,
@@ -65,15 +66,12 @@ LIGHT_GAUSS_NOISE_CONFIG = config.Config(
     noise_levels_peripheral_amplitude= (0.20, 0.30, 0.10, 0.80, 0.00))
 
 # The current lab config
-config = NOISE_128_CONFIG
+config = STANDARD_GAUSS_NOISE_CONFIG
 
-executor = Executor(config.content_weight, config.style_weight, config.tv_weight,
-                    config.optimizer, config.model, config.init_method,
-                    config.iters_num, config.levels_num, config.noise_factor,
-                    config.noise_levels, config.noise_levels_central_amplitude,
-                    config.noise_levels_peripheral_amplitude, config.noise_levels_dispersion)
+executor = Executor(config)
 
 async def backend_task():
+    """ A function for defining images to process """
     default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
     content_images_dir = os.path.join(default_resource_dir, 'content-images')
     style_images_dir = os.path.join(default_resource_dir, 'style-images')
@@ -107,8 +105,6 @@ async def backend_task():
 
         await executor.add_task(str(uuid.uuid4()), neural_style_transfer.ContentStylePair((pair[0], content_img), (pair[1], style_img)))
 
-    #await executor.run()
-
 
 @app.before_serving
 async def startup():
@@ -116,6 +112,7 @@ async def startup():
 
 
 async def load_image(img_path):
+    """ A function for loading of an image """
     if not os.path.exists(img_path):
         raise Exception(f'Path does not exist: {img_path}')
     img = cv2.imread(img_path)[:, :, ::-1]  # [:, :, ::-1] converts BGR (opencv format...) into RGB

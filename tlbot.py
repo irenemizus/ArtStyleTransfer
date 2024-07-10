@@ -15,7 +15,7 @@ from aiogram import Bot, Dispatcher, html, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
-from aiogram.types import Message, InputFile, CallbackQuery, BufferedInputFile
+from aiogram.types import Message, BufferedInputFile #, InputFile, CallbackQuery
 from aiogram.methods import SendPhoto
 
 from aiogram_media_group import media_group_handler, MediaGroupFilter
@@ -82,12 +82,7 @@ async def task_progress_callback(task_id, result):
         raise
 
 config = config.Config()
-executor = Executor(config.content_weight, config.style_weight, config.tv_weight,
-                    config.optimizer, config.model, config.init_method,
-                    config.iters_num, config.levels_num, config.noise_factor,
-                    config.noise_levels, config.noise_levels_central_amplitude,
-                    config.noise_levels_peripheral_amplitude, config.noise_levels_dispersion,
-                    report_progress=task_progress_callback)
+executor = Executor(config, report_progress=task_progress_callback)
 
 
 @dp.message(CommandStart())
@@ -109,7 +104,7 @@ async def respond_with_send_me_two_pictures(message: types.Message):
         f"To start a job please send me two pictures {html.italic('in a single message')} - one for the {html.bold('content')} and one for the {html.bold('style')}")
 
 
-@dp.message(MediaGroupFilter())  #MediaGroupFilter(is_media_group=True), content_types=ContentType.PHOTO)
+@dp.message(MediaGroupFilter())
 @media_group_handler
 async def album_handler(messages: List[types.Message]):
     try:
@@ -168,7 +163,7 @@ async def backend_task():
 
 
 async def on_bot_start_up(dispatcher: Dispatcher) -> None:
-    """List of actions which should be done before bot start"""
+    """ List of actions which should be done before bot start """
     await asyncio.create_task(backend_task())  # creates background task
 
 

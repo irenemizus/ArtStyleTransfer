@@ -1,7 +1,7 @@
 import uuid
 
 import neural_style_transfer
-from quart import Quart, render_template, make_response
+from quart import Quart
 import os
 import cv2
 import numpy as np
@@ -20,12 +20,7 @@ STARTING_CONFIG = config.Config(
 
 # The current lab config
 config = STARTING_CONFIG
-
-executor = Executor(config.content_weight, config.style_weight, config.tv_weight,
-                    config.optimizer, config.model, config.init_method,
-                    config.iters_num, config.levels_num, config.noise_factor,
-                    config.noise_levels, config.noise_levels_central_amplitude,
-                    config.noise_levels_peripheral_amplitude, config.noise_levels_dispersion)
+executor = Executor(config)
 
 async def backend_task():
     default_resource_dir = os.path.join(os.path.dirname(__file__), 'data')
@@ -41,8 +36,6 @@ async def backend_task():
         style_img = await load_image(os.path.join(style_images_dir, pair[1]))
 
         await executor.add_task(str(uuid.uuid4()), neural_style_transfer.ContentStylePair((pair[0], content_img), (pair[1], style_img)))
-
-    #await executor.run()
 
 
 @app.before_serving

@@ -22,7 +22,7 @@ Secondly, it is very sensitive to the content image's color contrast level. In t
 the algorithm converges very slowly leaving spots of "style baldness", while in the places where color gradient leaps 
 abruptly, it tends to noticeably diverge with some ugly distortions of the original content image. These effects can be clearly seen on the images of a bird below. 
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-Gatys.png?raw=true" style="width: 600pt"></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-Gatys.png?raw=true" style="width: 800pt"></img>
 
 To overcome the above flaws the following improvements were implemented:
 * <b>A pyramid loss algorithm</b> to allow for obtaining images with resolution up to 2K having non-square shape. 
@@ -64,7 +64,7 @@ quality.
 and get rid of the most "bald" spots at the places of the lowest contrast. The results of using this part of the algorithm can be seen on 
 the following images:
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-norm-noise.png?raw=true" style="width: 600pt"></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-norm-noise.png?raw=true" style="width: 800pt"></img>
 
 * Second, a multi-level structure with different granularity of the noise for each level was added. On each of 
 user-specified levels different sizes of noise spots are used, triggering style features of different scales. 
@@ -72,14 +72,20 @@ The results of using the different noise scales approach (16 and 128 spots for t
 a large and a medium-sized noise, relatively), together with the corresponding noise maps, can be seen on the figures below.
 
 Large-sized noise (result):
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-16.png?raw=true" style="width: 600pt"></img>
+
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-16.png?raw=true" style="width: 800pt"></img>
+
 Large-sized noise (noise map):
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_16.jpg?raw=true" style="width: 600pt"></img>
+
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_16.jpg?raw=true" style="width: 150pt"></img>
 
 Medium-sized noise (result):
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-128.png?raw=true" style="width: 600pt"></img>
-Large-sized noise (noise map):
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_128.jpg?raw=true" style="width: 600pt"></img>
+
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-128.png?raw=true" style="width: 800pt"></img>
+
+Medium-sized noise (noise map):
+
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_128.jpg?raw=true" style="width: 150pt"></img>
 
 * Third, instead of using a random normally-distributed color noise, it was decided to make a noise map by randomly permuting the pixels of the input style 
 image. This improvement took away the colors that are irrelative to the style.

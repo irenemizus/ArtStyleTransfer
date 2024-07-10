@@ -2,11 +2,12 @@ import math
 import torch
 from functools import reduce
 
-
 from neural_nets import Vgg19
+
 
 # initially it takes some time for PyTorch to download the models into local cache
 def prepare_model(model, device):
+    """ A function for preparing a model """
     # we are not tuning model weights -> we are only tuning optimizing_img's pixels! (that's why requires_grad=False)
     if model == 'vgg19':
         model = Vgg19(requires_grad=False, show_progress=True)
@@ -23,6 +24,7 @@ def prepare_model(model, device):
 
 
 def gram_matrix(x, should_normalize=True):
+    """ A function for calculating Gram matrices """
     (b, ch, h, w) = x.size()
     features = x.view(b, ch, w * h)
     features_t = features.transpose(1, 2)
@@ -33,11 +35,13 @@ def gram_matrix(x, should_normalize=True):
 
 
 def total_variation(y):
+    """ A function for calculating total variation loss (is used as the simplest denoiser) """
     mean_x = torch.mean(torch.abs(y[:, :, :, :-1] - y[:, :, :, 1:]))
     mean_y = torch.mean(torch.abs(y[:, :, :-1, :] - y[:, :, 1:, :]))
-    return (mean_x*mean_x + mean_y*mean_y)  #torch.sqrt
+    return mean_x*mean_x + mean_y*mean_y
 
 
 def regularization(y):
+    # regularization term - currently not used
     els = reduce(lambda a, b: a*b, y.shape)
     return torch.sum(torch.pow(y / 128.0, 10)) / math.pow(els, 10)

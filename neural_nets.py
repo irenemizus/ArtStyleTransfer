@@ -4,7 +4,6 @@ from torchvision import models
 
 """
     More detail about the VGG architecture (if you want to understand magic/hardcoded numbers) can be found here:
-    
     https://github.com/pytorch/vision/blob/3c254fb7af5f8af252c24e89949c54a3461ff0be/torchvision/models/vgg.py
 """
 
