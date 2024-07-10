@@ -30,6 +30,9 @@ COPY *.py requirements*.txt  ./
 RUN pip install -r requirements-base.txt
 RUN pip install -r requirements-torch.txt
 
+# Starting a demo script to download neural net pretrained layers for the first time
+RUN python3 start_nn.py
+
 RUN chmod 777 -R ./*
 USER 1000:1000
 

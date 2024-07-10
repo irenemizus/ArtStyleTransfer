@@ -49,7 +49,6 @@ NOISE_16_CONFIG = config.Config(
     noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
 )
 
-
 # Gauss noise config, middle-sized image
 # (the parameter values are specified in the declaration of the Config class)
 STANDARD_GAUSS_NOISE_CONFIG = config.Config()
@@ -66,7 +65,7 @@ LIGHT_GAUSS_NOISE_CONFIG = config.Config(
     noise_levels_peripheral_amplitude= (0.20, 0.30, 0.10, 0.80, 0.00))
 
 # The current lab config
-config = STANDARD_GAUSS_NOISE_CONFIG
+config = NOISE_128_CONFIG
 
 executor = Executor(config.content_weight, config.style_weight, config.tv_weight,
                     config.optimizer, config.model, config.init_method,
@@ -108,7 +107,7 @@ async def backend_task():
 
         await executor.add_task(str(uuid.uuid4()), neural_style_transfer.ContentStylePair((pair[0], content_img), (pair[1], style_img)))
 
-    await executor.run()
+    #await executor.run()
 
 
 @app.before_serving

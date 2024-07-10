@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Neural Style Transfer</title>
+    <style>
+        body {
+            margin: auto;
+        }
+        .image {
+            width: 46vw;
+            margin: 0.1vw;
+        }
+        .image-small {
+            width: 22.7vw;
+            margin: 0.1vw;
+        }
+
+        div.column {
+            display: inline-block;
+            text-align: center;
+            font-family: sans-serif;
+            width: 48vw;
+            margin: 0.1vw;
+        }
+        .caption {
+        	margin-bottom: 1vw;
+        }
+        .caption2 {
+        	margin-bottom: 3.5vw;
+        }
+
+        div.column2 {
+            display: inline-block;
+            text-align: center;
+            font-family: sans-serif;
+            width: 48vw;
+            margin: 0.1vw;
+            vertical-align: middle;
+        }
+
+
+    </style>
+</head>
+<body>
+	<div>
+        <div class="column"  style="vertical-align: top;">
+        	<img class="image" src="../data/content-images/girl_with_gun.jpg" alt="girl_with_gun"/>
+        	<div class="caption2">girl_with_gun.jpg</div>
+        	<img class="image" src="../data/content-images/lion.jpg" alt="lion"/>
+        	<div class="caption">lion.jpg</div>
+        </div>
+    </div>
+    <div>
+        <div class="column2">
+	    	<div>
+		        <img class="image-small" src="../data/style-images/matisse2.jpg" alt="matisse2"/>
+    		    <img class="image-small" src="../data/style-images/expressive.jpg" alt="expressive"/>
+	    	</div>
+	    	<div>
+        		<img class="image-small" src="../data/style-images/mosaic.jpg" alt="mosaic"/>
+	        	<img class="image-small" src="../data/style-images/starry_night.jpg" alt="starry_night"/>
+	    	</div>
+    	</div>
+
+	    <div class="column2">
+	    	<div>
+	    	    <img class="image-small" src="../data/style-images/cubism1.jpg" alt="cubism1"/>
+		        <img class="image-small" src="../data/style-images/cubism2.jpg" alt="cubism2"/>
+			</div>
+			<div>
+	    	    <img class="image-small" src="../data/style-images/cubism3.jpg" alt="cubism3"/>
+	       		<img class="image-small" src="../data/style-images/mona_lisa.jpg" alt="mona_lisa"/>
+	        </div>
+		</div>
+    </div>
+</body>
+</html>

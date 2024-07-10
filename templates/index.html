@@ -23,7 +23,7 @@
     {% for card in cards %}
         <div class="div">
             <img class="image" src="{{ url_for('generated', image_id=card['image_id']) }}" alt="{{ card['image_id'] }}" />
-                {# <div>{{ "Progress = %.2f%% (iteration #%d of %d)" % (card['percent'], card['cur_iter'], card['iters_num']) }}</div>#}
+                <div>{{ "Progress = %.2f%% (iteration #%d of %d)" % (card['percent'], card['cur_iter'], card['iters_num']) }}</div>
         </div>
     {% endfor %}
 
