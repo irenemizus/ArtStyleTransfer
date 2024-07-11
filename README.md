@@ -138,13 +138,13 @@ To install please clone the repository to your working machine and follow these 
    $ python lab.py
    ```
 4. To run the Telegram bot, first create a file `token_DO_NOT_COMMIT.py` in the current directory 
-(see subsection [Obtaining Telegram bot token](#token))
+(see subsection [Obtaining Telegram bot token](#obtaining-telegram-bot-token))
 5. After the bot is created and the token is obtained and set, you can just run the bot backend. 
    ```bash
    $ python tlbot.py
    ```
    
-### Obtaining Telegram bot token {#token}
+### Obtaining Telegram bot token
 To run the Telegram bot, first create a file `token_DO_NOT_COMMIT.py` in the current directory with the following content:
    ```
    TOKEN = "YOUR_BOT_TOKEN"
@@ -156,7 +156,7 @@ To run the Telegram bot, first create a file `token_DO_NOT_COMMIT.py` in the cur
 ## Installation Guide (Dockerfile)   
    It is also possible to use Dockerfile from the project folder to create a Docker image, which allows for automatically 
 running the Telegram bot. To do this, first create a file `token_DO_NOT_COMMIT.py` in the current project directory 
-(see subsection [Obtaining Telegram bot token](#token)). Then build the Docker image with the command
+(see subsection [Obtaining Telegram bot token](#obtaining-telegram-bot-token)). Then build the Docker image with the command
    ```bash
    $ docker build -t ast .  
    ```
