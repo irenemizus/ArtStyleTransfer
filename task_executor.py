@@ -9,7 +9,10 @@ from config import simultaneous_tasks_count
 sem = asyncio.Semaphore(simultaneous_tasks_count)
 
 
+
 class Task:
+    """ A class representing a single optimization task and reporting its output to the Executor """
+
     def __init__(self, content_n_style: ContentStylePair, config,
                  task_id: str, report: Callable, job_done: Callable):
         self.__task_id = task_id
@@ -40,6 +43,8 @@ class Task:
 
 
 class Executor:
+    """ The class executing the optimization tasks. And collecting the results  """
+
     def __init__(self, config, report_progress=None):
         self.__tasks = {}
         self.__progress = {}
@@ -55,6 +60,7 @@ class Executor:
     async def get_progress(self, key):
         async with self.__progress_lock:
             value = self.__progress[key]
+            # (progress(%), current optimizing image)
             vv = (value[0], value[1].copy() if value[1] is not None else None)
             return vv
 
@@ -75,6 +81,7 @@ class Executor:
 
     async def set_progress(self, key, value):
         async with self.__progress_lock:
+            # (progress(%), current optimizing image)
             vv = (value[0], value[1].copy() if value[1] is not None else None)
             self.__progress[key] = vv
 
@@ -104,7 +111,7 @@ class Executor:
             self.__tasks[task_id] = Task(content_n_style,
                                          self.__config, task_id=task_id, report=self.__report, job_done=self.__job_done)
             print(f"Task {task_id} run")
-
+            return self.__tasks[task_id].job
 
     async def run(self, forever=False):
         """ A running function for Telegram bot """

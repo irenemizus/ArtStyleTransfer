@@ -23,7 +23,6 @@ RUN apt install -y python3-pip
 
 # installing the requirements
 WORKDIR /opt/ast
-#ADD hub ./hub
 ADD data ./data
 ADD templates ./templates
 COPY *.py requirements*.txt  ./
@@ -34,6 +33,5 @@ RUN pip install -r requirements-torch.txt
 RUN python3 start_nn.py
 
 RUN chmod 777 -R ./*
-USER 1000:1000
 
 ENTRYPOINT ["python3", "tlbot.py"]

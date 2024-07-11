@@ -50,16 +50,19 @@ class NotTwoPhotosException(Exception):
 
 
 async def task_progress_callback(task_id, result):
+    """ A callback function for showing progress and current result """
     try:
         percent = result[0]
         res_img = result[1]
 
+        # preparing the resulting image to show
         new_img_np = res_img[:, :, ::-1]  # RGB -> BGR
 
         new_img_np = np.clip(new_img_np * 255, 0, 255).astype('uint8')
         _, new_res = cv2.imencode('.jpg', new_img_np)
         new_res_bytes = new_res.tobytes()
 
+        # showing progress
         async with table_lock:
             chat_id = tasks_table[task_id].chat_id
             old_percent = tasks_table[task_id].progress
@@ -107,6 +110,7 @@ async def respond_with_send_me_two_pictures(message: types.Message):
 @dp.message(MediaGroupFilter())
 @media_group_handler
 async def album_handler(messages: List[types.Message]):
+    """ A function for taking two input images and preparing them for processing """
     try:
         if len(messages) != 2:
             raise NotTwoPhotosException
@@ -115,9 +119,11 @@ async def album_handler(messages: List[types.Message]):
 
         for message in messages:
             if message.photo:
+                # getting an image
                 file = await bot.get_file(message.photo[-1].file_id)
                 result = await bot.download_file(file.file_path)
 
+                # preparing an image for processing
                 with result as f:
                     res_np = np.frombuffer(f.read(), np.uint8)
                     img_np = cv2.imdecode(res_np, cv2.IMREAD_COLOR)
@@ -136,6 +142,7 @@ async def album_handler(messages: List[types.Message]):
 
         task_id = str(uuid.uuid4())
 
+        # adding a task for processing
         async with table_lock:
             assert messages[0].chat.id == messages[1].chat.id, "Messages are from different chats? How?"
             tasks_table[task_id] = ChatProgress(messages[-1].chat.id)

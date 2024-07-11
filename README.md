@@ -30,6 +30,8 @@ To overcome the above flaws the following improvements were implemented:
 allows to increase the convergence rate in the "smooth" regions and stabilize it at the "sharp" edges reducing noise repercussions around them.
 Also, different noise levels help to amplify the style features of different sizes at once.
 
+<em>The final version shows fast convergence and good visual quality, which doesn't depend on the target resolution of the output image.</em>
+
 ## Pyramid Loss Algorithm
 This algorithm implements an idea of minimizing loss function values for several sizes of the content-style pairs of images
 <em>simultaneously</em>. To achieve that the following steps are performed:
@@ -71,21 +73,21 @@ user-specified levels different sizes of noise spots are used, triggering style 
 The results of using the different noise scales approach (16 and 128 spots for the shortest dimension of the content image, i.e. 
 a large and a medium-sized noise, relatively), together with the corresponding noise maps, can be seen on the figures below.
 
-Large-sized noise (result):
-
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-16.png?raw=true" style="width: 800pt"></img>
-
 Large-sized noise (noise map):
 
 <img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_16.jpg?raw=true" style="width: 150pt"></img>
 
-Medium-sized noise (result):
+Large-sized noise (result):
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-128.png?raw=true" style="width: 800pt"></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-16.png?raw=true" style="width: 800pt"></img>
 
 Medium-sized noise (noise map):
 
 <img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_128.jpg?raw=true" style="width: 150pt"></img>
+
+Medium-sized noise (result):
+
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-128.png?raw=true" style="width: 800pt"></img>
 
 * Third, instead of using a random normally-distributed color noise, it was decided to make a noise map by randomly permuting the pixels of the input style 
 image. This improvement took away the colors that are irrelative to the style.

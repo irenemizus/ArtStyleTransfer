@@ -3,6 +3,7 @@ import os
 import traceback
 
 import cv2
+from torch import Tensor
 
 MYPATH = os.path.dirname(os.path.abspath(__file__))
 print(f"Script's directory: {MYPATH}")
@@ -382,7 +383,7 @@ def prepare_img(img, device):
     return transform(img.copy()).to(device).unsqueeze(0)
 
 
-def unprepare_img(img):
+def unprepare_img(img: Tensor):
     """ A function for reversing of the prepare_img() effect """
     dump_img = img.permute([0, 2, 3, 1]).squeeze(0).to("cpu").detach().numpy()
     dump_img += np.array(IMAGENET_MEAN_255).reshape((1, 1, 3))
