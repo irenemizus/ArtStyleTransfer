@@ -32,9 +32,7 @@ Also, different noise levels help to amplify the style features of different siz
 
 <em>The final version shows fast convergence and good visual quality, which doesn't depend on the target resolution of the output image.</em>
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_cubism_lvl1.jpg?raw=true" ></img>
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_cubism_lvl2.jpg?raw=true" ></img>
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_cubism_lvl3.jpg?raw=true" ></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_diff_lvls.png?raw=true" ></img>
 ## Pyramid Loss Algorithm
 This algorithm implements an idea of minimizing loss function values for several sizes of the content-style pairs of images
 <em>simultaneously</em>. To achieve that the following steps are performed:
