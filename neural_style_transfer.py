@@ -88,20 +88,28 @@ class LossBuilder:
         # discrepancy from the content image
 
         # Adding random noise on each step (experimental (not documented) feature)
-        noise_power = 0 #0.5
-        noise = noise_power * torch.clip((0.5 * torch.randn(self.__target_content_representation.shape)) + 0.5, min=0.0, max=1.0)
-        noise = noise.to(self.__target_content_representation.device)
+        noise_power = 0.2
 
-        content_loss = torch.nn.MSELoss(reduction='mean')(self.__target_content_representation + noise, current_content_representation)
+        content_noise = torch.clip((0.5 * torch.randn(self.__target_content_representation.shape)) + 0.5, min=0.0, max=1.0)
+        content_noise = content_noise.to(self.__target_content_representation.device)
+        noised_target = torch.pow(self.__target_content_representation, (1.0 - noise_power)) * torch.pow(content_noise, noise_power)
+
+        content_loss = torch.nn.MSELoss(reduction='mean')(noised_target, current_content_representation)
 
         current_style_representation = current_rep_builder.build_style(self.__style_feature_maps_indices)
 
+        style_noise = [torch.clip((0.5 * torch.randn(self.__target_style_representation[ind].shape)) + 0.5, min=0.0, max=1.0) for ind in range(len(self.__target_style_representation))]
+        style_noise = [style_noise[ind].to(self.__target_style_representation[ind].device) for ind in range(len(style_noise))]
+
+        noised_style = [torch.pow(self.__target_style_representation[ind], (1.0 - noise_power)) * torch.pow(style_noise[ind], noise_power) for ind in range(len(style_noise))]
+
+
         # calculating style representation for hires
         style_loss = 0.0
-        for gram_gt, gram_hat in zip(self.__target_style_representation, current_style_representation):
+        for gram_gt, gram_hat in zip(noised_style, current_style_representation):
             # discrepancy from the style image
             style_loss += torch.nn.MSELoss(reduction='mean')(gram_gt[0], gram_hat[0])
-        style_loss /= len(self.__target_style_representation)
+        style_loss /= len(noised_style)
 
         # total variation loss (rough denoiser)
         tv_loss = math_utils.total_variation(optimizing_img) # + utils.regularization(optimizing_img)

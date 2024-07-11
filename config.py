@@ -10,8 +10,8 @@ class Config:
                  model='vgg19',                                                             # choices=['vgg19'], type=str
                  init_method='content+noise',                                               # choices=['random', 'content+noise', 'style'], type=str
                  levels_num=2,                                                              # number of pyramid levels, type=int, = 4 for maximum resolution
-                 iters_num=500,                                                             # number of iterations to perform, type=int, = 1500 for maximum quality
-                 noise_factor=0.95,                                                         # strength of noise, which is added to the initial image, type=float
+                 iters_num=800,                                                             # number of iterations to perform, type=int, = 1500 for maximum quality
+                 noise_factor=0.95, #0.5,                                                         # strength of noise, which is added to the initial image, type=float
                  noise_levels=                      (   9,   18,   36,   -1,    0),         # tuple of noise spots number/size along the shortest axis of the content image for a few noise levels, type=tuple
                  noise_levels_central_amplitude=    (0.30, 0.20, 0.10, 0.20, 0.20),         # tuple of noise gaussian envelope strength in the center of the image for a few noise levels, type=tuple
                  noise_levels_peripheral_amplitude= (0.20, 0.30, 0.40, 0.10, 0.00),         # tuple of noise gaussian envelope strength at the periphery of the image for a few noise levels, type=tuple
