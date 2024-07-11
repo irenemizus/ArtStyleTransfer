@@ -32,7 +32,12 @@ Also, different noise levels help to amplify the style features of different siz
 
 <em>The final version shows fast convergence and good visual quality, which doesn't depend on the target resolution of the output image.</em>
 
+A few examples of quality for three resolution levels (see the next section for details). The first column corresponds to a single pyramid level (256 pixels 
+for the shortest dimension of the optimizing image); the second column - to 2 levels of pyramid (512 pixels); the third column - 
+to 3 levels (1024 pixels):
+
 <img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_diff_lvls.png?raw=true" ></img>
+
 ## Pyramid Loss Algorithm
 This algorithm implements an idea of minimizing loss function values for several sizes of the content-style pairs of images
 <em>simultaneously</em>. To achieve that the following steps are performed:
@@ -132,21 +137,26 @@ To install please clone the repository to your working machine and follow these 
    ```bash
    $ python lab.py
    ```
-4. To run the Telegram bot, first create a file `token_DO_NOT_COMMIT.py` in the current directory with the following content:
+4. To run the Telegram bot, first create a file `token_DO_NOT_COMMIT.py` in the current directory 
+(see subsection [Obtaining Telegram bot token](#token))
+5. After the bot is created and the token is obtained and set, you can just run the bot backend. 
+   ```bash
+   $ python tlbot.py
+   ```
+   
+### Obtaining Telegram bot token {#token}
+To run the Telegram bot, first create a file `token_DO_NOT_COMMIT.py` in the current directory with the following content:
    ```
    TOKEN = "YOUR_BOT_TOKEN"
    ```
    Bot token `"YOUR_BOT_TOKEN"` can be obtained via https://t.me/BotFather . 
    It is assumed that in the process of obtaining the token you will also create your own bot. The instructions of `BotFatther` are self-explanatory. 
 
-5. After the bot is created and the token is obtained and set, you can just run the bot backend. 
-   ```bash
-   $ python tlbot.py 
-   ```
    
 ## Installation Guide (Dockerfile)   
    It is also possible to use Dockerfile from the project folder to create a Docker image, which allows for automatically 
-running the Telegram bot. To do this build the Docker image with the command
+running the Telegram bot. To do this, first create a file `token_DO_NOT_COMMIT.py` in the current project directory 
+(see subsection [Obtaining Telegram bot token](#token)). Then build the Docker image with the command
    ```bash
    $ docker build -t ast .  
    ```
@@ -166,7 +176,8 @@ To use the bot, just send to it a pair of images <em>in one message</em>. The fi
 the second - as a style. The bot will start working, producing an intermediate result each 20% of the progress.
 
 ### The Lab
-Run `python lab.py`, after a couple seconds it will start producing images and reporting them. To see the report, open your 
+Run `python lab.py`, after a couple of seconds (plus a bit of time for downloading the neural net pretrained data if you run 
+it for the first time) it will start producing images and reporting them. To see the report, open your 
 browser at `http://<host>:8080`. The page doesn't update itself, refresh it manually.
 
 The `lab.py` app is not interactive. All the configuration is done in the code itself (see `config.py` for the default settings).
