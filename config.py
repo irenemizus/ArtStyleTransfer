@@ -1,4 +1,4 @@
-simultaneous_tasks_count = 2 # 1 if the levels_num > 3
+simultaneous_tasks_count = 2 # 1 if the levels_num > 2
 
 class Config:
     """ A class with configuration settings """

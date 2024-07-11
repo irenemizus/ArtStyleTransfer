@@ -32,6 +32,9 @@ Also, different noise levels help to amplify the style features of different siz
 
 <em>The final version shows fast convergence and good visual quality, which doesn't depend on the target resolution of the output image.</em>
 
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_cubism_lvl1.jpg?raw=true" ></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_cubism_lvl2.jpg?raw=true" ></img>
+<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/bird_cubism_lvl3.jpg?raw=true" ></img>
 ## Pyramid Loss Algorithm
 This algorithm implements an idea of minimizing loss function values for several sizes of the content-style pairs of images
 <em>simultaneously</em>. To achieve that the following steps are performed:
@@ -73,21 +76,25 @@ user-specified levels different sizes of noise spots are used, triggering style 
 The results of using the different noise scales approach (16 and 128 spots for the shortest dimension of the content image, i.e. 
 a large and a medium-sized noise, relatively), together with the corresponding noise maps, can be seen on the figures below.
 
-Large-sized noise (noise map):
+   Large-sized noise (noise map):
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_16.jpg?raw=true" style="width: 150pt"></img>
+   <img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_16.jpg?raw=true" style="width: 150pt"></img>
 
-Large-sized noise (result):
+   Large-sized noise (result):
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-16.png?raw=true" style="width: 800pt"></img>
+   <img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-16.png?raw=true" style="width: 800pt"></img>
 
-Medium-sized noise (noise map):
+   Medium-sized noise (noise map):
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_128.jpg?raw=true" style="width: 150pt"></img>
+   <img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/noise_mask_128.jpg?raw=true" style="width: 150pt"></img>
 
-Medium-sized noise (result):
+   Medium-sized noise (result):
 
-<img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-128.png?raw=true" style="width: 800pt"></img>
+   <img src="https://github.com/irenemizus/ArtStyleTransfer/blob/master/img/birds-noise-128.png?raw=true" style="width: 800pt"></img>
+
+   There is a possibility to use the noise of different scales at the same time. For instance, while obtaining the promo images 
+shown at the top of the page, noise levels with 9, 18, and 36 spots for the shortest dimension of the content image were used, 
+together with the pixel-wide noise. 
 
 * Third, instead of using a random normally-distributed color noise, it was decided to make a noise map by randomly permuting the pixels of the input style 
 image. This improvement took away the colors that are irrelative to the style.

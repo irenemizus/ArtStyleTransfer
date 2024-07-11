@@ -99,6 +99,7 @@ async def backend_task():
         ('lion.jpg', 'cubism1.jpg'),
     ]
 
+
     for pair in content_style_filename_pairs:
         content_img = await load_image(os.path.join(content_images_dir, pair[0]))
         style_img = await load_image(os.path.join(style_images_dir, pair[1]))
