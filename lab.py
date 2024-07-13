@@ -16,37 +16,45 @@ app.jinja_env.globals.update(zip=zip)
 # No-noise config, useless, just for demonstration
 NO_NOISE_CONFIG = config.Config(
     noise_factor=0.0,
-    noise_levels=                      (),
-    noise_levels_central_amplitude=    (),
-    noise_levels_peripheral_amplitude= (),
-    noise_levels_dispersion =          ()
+    init_noise_structure_def=config.NoiseStructureDefinition(
+        noise_levels=                      (),
+        noise_levels_central_amplitude=    (),
+        noise_levels_peripheral_amplitude= (),
+        noise_levels_dispersion =          ()
+    )
 )
 
 # Pixel-wide noise config, useless, just for demonstration
 PIXEL_WIDE_NOISE_CONFIG = config.Config(
     noise_factor=0.5,
-    noise_levels=                      (  -1, ),
-    noise_levels_central_amplitude=    ( 1.0, ),
-    noise_levels_peripheral_amplitude= ( 1.0, ),
-    noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+    init_noise_structure_def=config.NoiseStructureDefinition(
+        noise_levels=                      (  -1, ),
+        noise_levels_central_amplitude=    ( 1.0, ),
+        noise_levels_peripheral_amplitude= ( 1.0, ),
+        noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+    )
 )
 
 # 128-per-line noise config, useless, just for demonstration
 NOISE_128_CONFIG = config.Config(
     noise_factor=0.7,
-    noise_levels=                      ( 128, ),
-    noise_levels_central_amplitude=    ( 1.0, ),
-    noise_levels_peripheral_amplitude= ( 1.0, ),
-    noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+    init_noise_structure_def=config.NoiseStructureDefinition(
+        noise_levels=                      ( 128, ),
+        noise_levels_central_amplitude=    ( 1.0, ),
+        noise_levels_peripheral_amplitude= ( 1.0, ),
+        noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+    )
 )
 
 # 16-per-line noise config, useless, just for demonstration
 NOISE_16_CONFIG = config.Config(
     noise_factor=0.7,
-    noise_levels=                      (  16, ),
-    noise_levels_central_amplitude=    ( 1.0, ),
-    noise_levels_peripheral_amplitude= ( 1.0, ),
-    noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+    init_noise_structure_def=config.NoiseStructureDefinition(
+        noise_levels=                      (  16, ),
+        noise_levels_central_amplitude=    ( 1.0, ),
+        noise_levels_peripheral_amplitude= ( 1.0, ),
+        noise_levels_dispersion =          ( 0.5, )    # Doesn't matter
+    )
 )
 
 # Gauss noise config, middle-sized image
@@ -55,18 +63,16 @@ STANDARD_GAUSS_NOISE_CONFIG = config.Config()
 
 # Light gauss noise config, experimental one
 LIGHT_GAUSS_NOISE_CONFIG = config.Config(
-    content_weight=1e3,
-    style_weight=1e3,
+    content_weight=1e4,
+    style_weight=4e4,
     tv_weight=0e0,
     levels_num=2,
-    iters_num=1500,
-    noise_factor=0.95,
-    noise_levels=                      (  32,   64,  128,   -1,    0),
-    noise_levels_central_amplitude=    (0.10, 0.15, 0.5, 0.10, 0.00),
-    noise_levels_peripheral_amplitude= (0.20, 0.30, 0.10, 0.80, 0.00))
+    iters_num=1000,
+    noise_factor=0.6
+)
 
 # The current lab config
-config = STANDARD_GAUSS_NOISE_CONFIG
+config = LIGHT_GAUSS_NOISE_CONFIG
 
 executor = Executor(config)
 

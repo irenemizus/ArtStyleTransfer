@@ -1,9 +1,12 @@
 import copy
+import math
 import os
 import traceback
 
 import cv2
 from torch import Tensor
+
+from config import NoiseStructureDefinition
 
 MYPATH = os.path.dirname(os.path.abspath(__file__))
 print(f"Script's directory: {MYPATH}")
@@ -81,27 +84,58 @@ class LossBuilder:
         self.__target_content_representation = content_rep_builder.build_content(content_feature_maps_index)
         self.__target_style_representation = style_rep_builder.build_style(style_feature_maps_indices)
 
-    def build(self, optimizing_img):
+    def build(self, optimizing_img, step: int):
         current_rep_builder = RepresentationBuilder(image=optimizing_img, neural_net=self.__neural_net)
 
         current_content_representation = current_rep_builder.build_content(self.__content_feature_maps_index)
         # discrepancy from the content image
 
         # Adding random noise on each step (experimental (not documented) feature)
-        noise_power = 0.2
+        noise_power = 0.5 - 0.0005 * step  #* math.exp(-0.023 * step)  # ~1/10 on the step #100
+        if noise_power < 0.0:
+            noise_power = 0.0
 
-        content_noise = torch.clip((0.5 * torch.randn(self.__target_content_representation.shape)) + 0.5, min=0.0, max=1.0)
-        content_noise = content_noise.to(self.__target_content_representation.device)
-        noised_target = torch.pow(self.__target_content_representation, (1.0 - noise_power)) * torch.pow(content_noise, noise_power)
+        print(f"step={step}, np={noise_power}")
+
+        #content_noise = torch.clip((0.5 * torch.randn(self.__target_content_representation.shape)) + 0.5, min=0.0, max=1.0)
+        #content_noise = content_noise.to(self.__target_content_representation.device)
+        noised_target = apply_noise_to_image(
+            image=self.__target_content_representation.to("cpu").numpy(),
+            noise_factor=noise_power,
+            noise_def=NoiseStructureDefinition(
+                noise_levels=                       (  -16,    0),
+                noise_levels_central_amplitude=     (0.99, 0.00),
+                noise_levels_peripheral_amplitude=  (0.99, 0.00),
+                noise_levels_dispersion=            (0.50, 0.50)
+            ),
+            debug_image_filename="loss_content_noise"
+        )  #.to(self.__target_content_representation.device)
+        noised_target = torch.from_numpy(noised_target).to(self.__target_content_representation.device)
+
+        #noised_target = self.__target_content_representation #torch.pow(self.__target_content_representation, (1.0 - noise_power)) * torch.pow(content_noise, noise_power)
 
         content_loss = torch.nn.MSELoss(reduction='mean')(noised_target, current_content_representation)
 
         current_style_representation = current_rep_builder.build_style(self.__style_feature_maps_indices)
 
-        style_noise = [torch.clip((0.5 * torch.randn(self.__target_style_representation[ind].shape)) + 0.5, min=0.0, max=1.0) for ind in range(len(self.__target_style_representation))]
-        style_noise = [style_noise[ind].to(self.__target_style_representation[ind].device) for ind in range(len(style_noise))]
+        #style_noise = [torch.clip((0.5 * torch.randn(self.__target_style_representation[ind].shape)) + 0.5, min=0.0, max=1.0) for ind in range(len(self.__target_style_representation))]
+        #style_noise = [style_noise[ind].to(self.__target_style_representation[ind].device) for ind in range(len(style_noise))]
 
-        noised_style = [torch.pow(self.__target_style_representation[ind], (1.0 - noise_power)) * torch.pow(style_noise[ind], noise_power) for ind in range(len(style_noise))]
+        noised_style = [apply_noise_to_image(
+            image=self.__target_style_representation[ind].to("cpu").numpy(),
+            noise_factor=noise_power,
+            noise_def=NoiseStructureDefinition(
+                noise_levels=                       (  -16,    0),
+                noise_levels_central_amplitude=     (0.99, 0.00),
+                noise_levels_peripheral_amplitude=  (0.99, 0.00),
+                noise_levels_dispersion=            (0.50, 0.50)
+            ),
+            debug_image_filename=f"loss_style_noise_{ind}"
+        ) for ind in range(len(self.__target_style_representation))]
+        noised_style = [torch.from_numpy(noised_style[ind]).to(self.__target_style_representation[ind].device) for ind in range(len(noised_style))]
+
+
+        #noised_style = self.__target_style_representation  #[torch.pow(self.__target_style_representation[ind], (1.0 - noise_power)) * torch.pow(style_noise[ind], noise_power) for ind in range(len(style_noise))]
 
 
         # calculating style representation for hires
@@ -184,7 +218,7 @@ class NeuralStyleTransfer:
                         optimizing_img_levels.append(conv_twice)
 
                     # calculating losses for the current pyramid level
-                    total_loss_l, content_loss, style_loss, tv_loss = loss_builders[i].build(optimizing_img_levels[i])
+                    total_loss_l, content_loss, style_loss, tv_loss = loss_builders[i].build(optimizing_img_levels[i], step)
                     if total_loss is None:
                         total_loss = total_loss_l
                     else:
@@ -234,49 +268,24 @@ async def resize(img, level):
     return cv2.resize(copy.deepcopy(img), (new_width, new_height), interpolation=cv2.INTER_CUBIC)
 
 
-async def neural_style_transfer(content_n_style: ContentStylePair,
-                                content_weight, style_weight, tv_weight,
-                                optimizer, model, init_method,
-                                iters_num, levels_num, noise_factor, noise_levels, noise_levels_central_amplitude,
-                                noise_levels_peripheral_amplitude, noise_levels_dispersion):
-    """ The main function """
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+def apply_noise_to_image(image, noise_factor: float, noise_def: NoiseStructureDefinition, image_for_gradient=None, randomized_image=None, debug_image_filename=None):
+    """
+    A universal function for noise generation for multiple aims
 
-    #GLOBAL_VALUE_DON_T_USE = 0
-    #if device == "cuda":
-    #    global GLOBAL_VALUE_DON_T_USE
-    #    coin = GLOBAL_VALUE_DON_T_USE
-    #    GLOBAL_VALUE_DON_T_USE = (GLOBAL_VALUE_DON_T_USE + 1) % 2
-    #    device = f"{device}:{coin}"
+    If image_for_gradient isn't None, itt is used to calculate Sobel and the noise is concentrated
+    according to the gradient map.
 
-    device =  torch.device(device)
-    model_name = model
-    optimizer_name = optimizer
+    If the randomized_image is not Null, the noise is made of its pixels. Otherwise, it is generated from the normal distribution
+    """
 
-    # Building a pyramid for content ang style images
-    level = 0
-    content_img_level0 = await resize(content_n_style.content[1], level=level)
-    style_img_level0 = await resize(content_n_style.style[1], level=level)
-
-    # Starting the processing
-    content_img_levels = [ content_img_level0 ]
-    style_img_levels = [ style_img_level0 ]
-
-    for level in range(1, levels_num):
-        content_img_next = await resize(content_n_style.content[1], level=level)
-        style_img_next = await resize(content_n_style.style[1], level=level)
-
-        content_img_levels.insert(0, content_img_next)
-        style_img_levels.insert(0, style_img_next)
-
-    # Making a style-based noise with different levels of granularity and gaussian envelopes
-    noise_shape = content_img_levels[0].shape
+    noise_shape = image.shape
+    nc = noise_shape[2]
     nw = noise_shape[1]
     nh = noise_shape[0]
     # noise map
     gaussian_noise_img = np.zeros(noise_shape, dtype=np.float32)
-    for noise_granularity, central_amplitude, peripheral_amplitude, dispersion_scale in zip(noise_levels, noise_levels_central_amplitude, noise_levels_peripheral_amplitude, noise_levels_dispersion):
+    for noise_granularity, central_amplitude, peripheral_amplitude, dispersion_scale in zip(noise_def.noise_levels, noise_def.noise_levels_central_amplitude, noise_def.noise_levels_peripheral_amplitude, noise_def.noise_levels_dispersion):
         if noise_granularity == 0:
             # Granularity zero means constant value, no noise (it is needed for keeping the same brightness level for the whole noise map)
             constant_level_gauss_mask = gaussian_mask(noise_shape, central_amplitude, peripheral_amplitude, dispersion_scale)
@@ -298,15 +307,20 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
                 noise_shape_div_w = nw // (-noise_granularity)
                 noise_shape_div_h = nh // (-noise_granularity)
 
+            # If the size is 0, let it be at least 1
+            if noise_shape_div_h < 1: noise_shape_div_h = 1
+            if noise_shape_div_w < 1: noise_shape_div_w = 1
+
             # shape of the low-resolution noise map at the current noise level
             noise_shape_div = (noise_shape_div_h, noise_shape_div_w, noise_shape[2])
 
-            if USE_NORMAL_NOISE_JUST_FOR_DEMONSTRATION:
+
+            if randomized_image is None:  #USE_NORMAL_NOISE_JUST_FOR_DEMONSTRATION:
                 # random normal noise
                 gaussian_noise_img_lowres = np.clip(np.random.normal(loc=0, scale=255, size=noise_shape_div).astype(np.float32) / 255, 0.0, 1.0)
             else:
                 # style-based noise
-                gaussian_noise_img_lowres = make_style_noise(style_img_levels[0], noise_shape_div)
+                gaussian_noise_img_lowres = randomize_image_pixels(randomized_image, noise_shape_div)
 
             # high-resolution noise map for the current noise level without gaussian envelope
             gaussian_noise_img_level = cv2.resize(gaussian_noise_img_lowres, dsize=(nw, nh),
@@ -320,24 +334,26 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
                 noise_level_gauss_mask = gaussian_mask(gaussian_noise_img_level.shape, central_amplitude, peripheral_amplitude, dispersion_scale)
                 gaussian_noise_img += gaussian_noise_img_level * noise_level_gauss_mask
 
-    if SHOW_TEST_IMGS:
+    if debug_image_filename is not None:
         # showing the obtained noise map
         temp_img = copy.deepcopy(gaussian_noise_img)
         #temp_img = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
-        cv2.imwrite("noise_mask.jpg", temp_img * 255)
+
+        temp_img = temp_img[:,:,:3]  # Sorry, we can print out only 3 channels :(
+        cv2.imwrite(f"{debug_image_filename}.jpg", temp_img * 255)
 
         # showing a blurry version of the obtained noise map
         temp_img = cv2.GaussianBlur(temp_img, (107, 107), 0)
-        cv2.imwrite("noise_mask_blurry.jpg", temp_img * 255)
+        cv2.imwrite(f"{debug_image_filename}.blurry.jpg", temp_img * 255)
 
-    if IGNORE_GRADIENT_MAP_JUST_FOR_DEMONSTRATION:
+    if image_for_gradient is None:   # IGNORE_GRADIENT_MAP_JUST_FOR_DEMONSTRATION:
         # calculating a weight factor for the noise map
         noise_replacement = noise_factor
     else:
         # taking into account the absolute value of the local gradient
         # computing gradients along the X and Y axis, respectively
-        sobelX = cv2.Sobel(content_img_levels[0], cv2.CV_64F, 1, 0, ksize=5)
-        sobelY = cv2.Sobel(content_img_levels[0], ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5)
+        sobelX = cv2.Sobel(image_for_gradient, cv2.CV_64F, 1, 0, ksize=5)
+        sobelY = cv2.Sobel(image_for_gradient, ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5)
         sobelX = np.absolute(sobelX)
         sobelY = np.absolute(sobelY)
 
@@ -347,37 +363,93 @@ async def neural_style_transfer(content_n_style: ContentStylePair,
         # getting a blurred gradient mask
         sobelCombined = cv2.GaussianBlur(sobelCombined, ksize=(101, 101), sigmaX=0.2)
         # calculating a weight factor for the noise map
-        a = 5.0
+        a = 15.0
         noise_replacement = a * noise_factor / (a + sobelCombined)
 
-        if SHOW_TEST_IMGS:
+        if debug_image_filename is not None:
             # showing the gradient mask
-            cv2.imwrite("test_noise_rep_blurry.jpg", noise_replacement * 255)
+            temp_img = copy.deepcopy(noise_replacement)
+            temp_img = temp_img[:, :, :3]  # Sorry, we can print out only 3 channels :(
+            cv2.imwrite(f"{debug_image_filename}.gradient.jpg", temp_img * 255)
 
-    # choosing an initial image for optimization
-    if init_method == 'random':
-        init_img_next = gaussian_noise_img * 0.5
-        init_img_name = 'random'
-    elif init_method == 'content+noise':
+
+    image = ((1.0 - noise_replacement) * image + noise_replacement * gaussian_noise_img).astype(np.float32)
+    return image
+
+
+async def neural_style_transfer(content_n_style: ContentStylePair,
+                                content_weight, style_weight, tv_weight,
+                                optimizer, model, init_method,
+                                iters_num, levels_num, noise_factor, init_noise_def: NoiseStructureDefinition):
+    """ The main function """
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        #GLOBAL_VALUE_DON_T_USE = 0
+        #if device == "cuda":
+        #    global GLOBAL_VALUE_DON_T_USE
+        #    coin = GLOBAL_VALUE_DON_T_USE
+        #    GLOBAL_VALUE_DON_T_USE = (GLOBAL_VALUE_DON_T_USE + 1) % 2
+        #    device = f"{device}:{coin}"
+
+        device =  torch.device(device)
+        model_name = model
+        optimizer_name = optimizer
+
+        # Building a pyramid for content ang style images
+        level = 0
+        content_img_level0 = await resize(content_n_style.content[1], level=level)
+        style_img_level0 = await resize(content_n_style.style[1], level=level)
+
+        # Starting the processing
+        content_img_levels = [ content_img_level0 ]
+        style_img_levels = [ style_img_level0 ]
+
+        for level in range(1, levels_num):
+            content_img_next = await resize(content_n_style.content[1], level=level)
+            style_img_next = await resize(content_n_style.style[1], level=level)
+
+            content_img_levels.insert(0, content_img_next)
+            style_img_levels.insert(0, style_img_next)
+
+        # Making a style-based noise with different levels of granularity and gaussian envelopes
+        noise_shape = content_img_levels[0].shape
+
         init_img_next = await resize(content_n_style.content[1], level=level)
-        init_img_name = content_n_style.content[0]
-        # the best choice so far
-        init_img_next = ((1.0 - noise_replacement) * init_img_next + noise_replacement * gaussian_noise_img).astype(np.float32)
-    else:
-        # init image has same dimension as content image - this is a hard constraint
-        style_img_resized = await resize(content_n_style.style[1], level=level)
-        init_img_next = style_img_resized
-        init_img_name = content_n_style.style[0]
+        # choosing an initial image for optimization
+        if init_method == 'random':
+            init_img_next = apply_noise_to_image(init_img_next,
+                                                       noise_factor=1.0,
+                                                       noise_def=init_noise_def)
+            init_img_name = 'random'
 
-    nst = NeuralStyleTransfer(device, model_name, style_img_levels, optimizer_name)
-    # the main processing loop
-    print("entering processing loop")
-    lr_start = 10.0
-    async for img, cur_iter in nst.process(content_img_levels, init_img_next, lr_start, iters_num, content_weight, style_weight, tv_weight, init_img_name):
-        # calculating current progress
-        percent = cur_iter / iters_num * 100.0
-        cur_iter += 1
-        yield percent, img
+        if init_method == 'content+noise':
+            # the best choice so far
+            init_img_next = apply_noise_to_image(init_img_next,
+                                                       noise_factor=noise_factor,
+                                                       noise_def=init_noise_def,
+                                                       image_for_gradient=content_img_levels[0],
+                                                       randomized_image=style_img_levels[0])
+            init_img_name = content_n_style.content[0]
+
+        else:
+            # init image has same dimension as content image - this is a hard constraint
+            style_img_resized = await resize(content_n_style.style[1], level=level)
+            init_img_next = style_img_resized
+            init_img_name = content_n_style.style[0]
+
+        nst = NeuralStyleTransfer(device, model_name, style_img_levels, optimizer_name)
+        # the main processing loop
+        print("entering processing loop")
+        lr_start = 0.05
+        async for img, cur_iter in nst.process(content_img_levels, init_img_next, lr_start, iters_num, content_weight, style_weight, tv_weight, init_img_name):
+            # calculating current progress
+            percent = cur_iter / iters_num * 100.0
+            cur_iter += 1
+            yield percent, img
+    except:
+        traceback.print_exc()
+        raise
 
 
 def prepare_img(img, device):
@@ -422,16 +494,16 @@ def gaussian_mask(shape, central_amplitude, peripheral_amplitude, dispersion_sca
 
     # applying the mask to each channel of the input image
     expanded = np.expand_dims(mask, 2)
-    res = np.repeat(expanded, 3, axis=2)
+    res = np.repeat(expanded, shape[2], axis=2)
     return res
 
 
 
-def make_style_noise(style_img_np, targ_shape):
+def randomize_image_pixels(image_np, targ_shape):
     """ A function for making a noise map by randomly permuting the pixels of the input style image """
     nw = targ_shape[1]
     nh = targ_shape[0]
-    inp_img_copy = copy.deepcopy(style_img_np)
+    inp_img_copy = copy.deepcopy(image_np)
     style_img_np_resized = cv2.resize(inp_img_copy, dsize=(nw, nh), interpolation=cv2.INTER_CUBIC)
 
     style_vect = style_img_np_resized.reshape(nh * nw, -1)

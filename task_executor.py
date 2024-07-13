@@ -29,13 +29,18 @@ class Task:
         print(f'Processing content image {self.__content_n_style.content[0]}, style image {self.__content_n_style.style[0]}; initial method: {self.__config.init_method}')
         async with sem:
             print("awaiting neural_style_transfer")
-            async for result in neural_style_transfer(self.__content_n_style,
-                                                       self.__config.content_weight, self.__config.style_weight, self.__config.tv_weight,
-                                                       self.__config.optimizer, self.__config.model, self.__config.init_method,
-                                                       self.__config.iters_num, self.__config.levels_num, self.__config.noise_factor,
-                                                       self.__config.noise_levels, self.__config.noise_levels_central_amplitude,
-                                                       self.__config.noise_levels_peripheral_amplitude,
-                                                       self.__config.noise_levels_dispersion):
+
+            async for result in neural_style_transfer(content_n_style=self.__content_n_style,
+                                                      content_weight=self.__config.content_weight,
+                                                      style_weight=self.__config.style_weight,
+                                                      tv_weight=self.__config.tv_weight,
+                                                      optimizer=self.__config.optimizer,
+                                                      model=self.__config.model,
+                                                      init_method=self.__config.init_method,
+                                                      iters_num=self.__config.iters_num,
+                                                      levels_num=self.__config.levels_num,
+                                                      noise_factor=self.__config.noise_factor,
+                                                      init_noise_def=self.__config.init_noise_structure_def):
                 result_copy = (result[0], result[1].copy())
                 await self.__report(self.__task_id, result_copy)
 
